@@ -1,0 +1,20 @@
+# Ignore the model_cache directory
+model_cache/
+
+# Ignore Python cache files and directories
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore environment files
+.env
+
+# Ignore Docker-related files
+*.log
+.dockerignore
+
+# Ignore large files related to models (if not using Git LFS)
+*.safetensors
+*.bin
+*.index.json
+*.json

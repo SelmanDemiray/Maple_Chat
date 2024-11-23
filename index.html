@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced AI Chat Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f7f7f7;
+            --text-color: #1e1e1e;
+            --user-message-bg: #e0f7fa;
+            --assistant-message-bg: #eceff1;
+            --input-bg: #ffffff;
+            --input-border: #ccc;
+            --button-bg: #007bff;
+            --button-hover-bg: #0056b3;
+            --scrollbar-bg: #ddd;
+            --scrollbar-thumb: #888;
+            --card-bg: #ffffff;
+            --hover-bg: #f0f0f0;
+        }
+        body.dark-mode {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --user-message-bg: #304ffe;
+            --assistant-message-bg: #333333;
+            --input-bg: #1f1f1f;
+            --input-border: #444;
+            --button-bg: #bb86fc;
+            --button-hover-bg: #9b67d3;
+            --scrollbar-bg: #444;
+            --scrollbar-thumb: #666;
+            --card-bg: #1e1e1e;
+            --hover-bg: #2c2c2c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        #app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        #sidebar {
+            width: 250px;
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--input-border);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+
+        #chat-section {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--input-border);
+        }
+
+        #model-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #model-dropdown {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--input-border);
+            padding: 8px;
+            border-radius: 5px;
+        }
+
+        #chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-bg);
+        }
+
+        #chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-container::-webkit-scrollbar-track {
+            background: var(--scrollbar-bg);
+        }
+        #chat-container::-webkit-scrollbar-thumb {
+            background-color: var(--scrollbar-thumb);
+            border-radius: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px;
+            border-radius: 10px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .user-message {
+            background-color: var(--user-message-bg);
+            align-self: flex-end;
+            color: var(--text-color);
+        }
+
+        .assistant-message {
+            background-color: var(--assistant-message-bg);
+            align-self: flex-start;
+        }
+
+        #input-container {
+            display: flex;
+            padding: 15px;
+            gap: 10px;
+            background-color: var(--input-bg);
+            border-top: 1px solid var(--input-border);
+        }
+
+        #message-input {
+            flex-grow: 1;
+            padding: 12px;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        .btn {
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn:hover {
+            background-color: var(--button-hover-bg);
+        }
+
+        #sidebar-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .sidebar-btn {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        #theme-toggle {
+            background: none;
+            color: var(--text-color);
+            border: none;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 5px;
+        }
+
+        #theme-toggle:hover {
+            color: var(--button-bg);
+        }
+
+        .loading-indicator {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-color);
+            font-style: italic;
+        }
+
+        .search-results {
+            background-color: var(--card-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .search-result-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: var(--hover-bg);
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <div id="model-info">
+                <select id="model-dropdown"></select>
+                <button id="theme-toggle" onclick="toggleTheme()">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+            <div id="sidebar-actions">
+                <button class="btn sidebar-btn" onclick="clearChat()">
+                    <i class="fas fa-trash"></i> Clear Chat
+                </button>
+                <button class="btn sidebar-btn" onclick="exportChat()">
+                    <i class="fas fa-download"></i> Export Chat
+                </button>
+            </div>
+        </div>
+
+        <!-- Chat Section -->
+        <div id="chat-section">
+            <!-- Chat Container -->
+            <div id="chat-container"></div>
+
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="loading-indicator" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i> Generating response...
+            </div>
+
+            <!-- Input Container -->
+            <div id="input-container">
+                <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off">
+                <button class="btn" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i> Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            API_BASE_URL: 'http://localhost:8007',
+            API_KEY: 'default-api-key',
+            MAX_TOKENS: 500,
+            TEMPERATURE: 0.7,
+            TOP_P: 0.9,
+            REPETITION_PENALTY: 1.0
+        };
+
+        // State Management
+        const state = {
+            messages: [],
+            models: [],
+            currentModel: null
+        };
+
+        // DOM References
+        const DOM = {
+            chatContainer: document.getElementById('chat-container'),
+            inputField: document.getElementById('message-input'),
+            modelDropdown: document.getElementById('model-dropdown'),
+            loadingIndicator: document.getElementById('loading-indicator'),
+            themeToggleBtn: document.getElementById('theme-toggle')
+        };
+
+        // Toggle Theme
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            DOM.themeToggleBtn.innerHTML = isDarkMode 
+                ? '<i class="fas fa-sun"></i>' 
+                : '<i class="fas fa-moon"></i>';
+            localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+        }
+
+        // Fetch Available Models
+        async function fetchAvailableModels() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/models`);
+                const data = await response.json();
+                
+                // Use Object.keys to get model names
+                state.models = Object.keys(data.models);
+                state.currentModel = data.default_model;
+
+                // Populate dropdown with rich information
+                DOM.modelDropdown.innerHTML = state.models.map(model => {
+                    const modelInfo = data.models[model];
+                    const description = modelInfo ? ` - ${modelInfo.description}` : '';
+                    return `<option value="${model}"${model === state.currentModel ? ' selected' : ''}>
+                        ${model}${model === state.currentModel ? ' (default)' : ''}${description}
+                    </option>`;
+                }).join('');
+
+                // Add event listener for model changes
+                DOM.modelDropdown.addEventListener('change', (e) => {
+                    state.currentModel = e.target.value;
+                });
+
+                console.log('Available models:', state.models);
+            } catch (error) {
+                console.error('Failed to fetch models:', error);
+                addMessage('assistant', 'Error: Could not load available models.');
+            }
+        }
+
+        // Send Message
+        async function sendMessage() {
+            const message = DOM.inputField.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage('user', message);
+            DOM.inputField.value = '';
+
+            // Show loading indicator
+            DOM.loadingIndicator.style.display = 'flex';
+
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': CONFIG.API_KEY
+                    },
+                    body: JSON.stringify({
+                        messages: state.messages,
+                        model: state.currentModel,
+                        max_new_tokens: CONFIG.MAX_TOKENS,
+                        temperature: CONFIG.TEMPERATURE,
+                        top_p: CONFIG.TOP_P,
+                        repetition_penalty: CONFIG.REPETITION_PENALTY
+                    })
+                });
+
+                const data = await response.json();
+                
+                // Hide loading indicator
+                DOM.loadingIndicator.style.display = 'none';
+
+                // Add assistant response
+                addMessage('assistant', data.response);
+
+                // Display search results if available
+                if (data.search_results && data.search_results.length > 0) {
+                    const searchResultsHTML = data.search_results.map(result => 
+                        `<div class="search-result-item">
+                            <strong>${result.title}</strong>
+                            <p>${result.snippet}</p>
+                            <a href="${result.url}" target="_blank">Source</a>
+                        </div>`
+                    ).join('');
+
+                    const searchResultsContainer = document.createElement('div');
+                    searchResultsContainer.className = 'search-results';
+                    searchResultsContainer.innerHTML = '<h4>Related Search Results:</h4>' + searchResultsHTML;
+                    DOM.chatContainer.appendChild(searchResultsContainer);
+                }
+            } catch (error) {
+                DOM.loadingIndicator.style.display = 'none';
+                addMessage('assistant', 'Error processing your request. Please try again.');
+                console.error('Chat error:', error);
+            }
+        }
+
+        // Add Message to Chat
+        function addMessage(role, content) {
+            const messageObj = { role, content };
+            state.messages.push(messageObj);
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}-message`;
+            messageDiv.innerHTML = marked.parse(content);
+            DOM.chatContainer.appendChild(messageDiv);
+            DOM.chatContainer.scrollTop = DOM.chatContainer.scrollHeight;
+        }
+
+        // Clear Chat
+        function clearChat() {
+            state.messages = [];
+            DOM.chatContainer.innerHTML = '';
+        }
+
+        // Export Chat
+        function exportChat() {
+            const chatText = state.messages.map(msg => 
+                `${msg.role.toUpperCase()}: ${msg.content}`
+            ).join('\n\n');
+
+            const blob = new Blob([chatText], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `chat_export_${new Date().toISOString().replace(/:/g, '-')}.txt`;
+            link.click();
+        }
+
+        // Enter Key to Send
+        DOM.inputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Initialize Page
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load theme
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                DOM.themeToggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
+            }
+
+            // Fetch available models
+            fetchAvailableModels();
+        });
+    </script>
+</body>
+</html>

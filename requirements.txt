@@ -1,0 +1,19 @@
+# requirements.txt
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+torch
+transformers
+accelerate
+bitsandbytes
+duckduckgo-search
+python-multipart
+
+protobuf
+tiktoken
+blobfile
+sentencepiece
+
+huggingface-hub
