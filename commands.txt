@@ -3,6 +3,10 @@
 2.  docker-compose up
 
 
+docker-compose build --no-cache
+
+docker-compose up
+
 
 
 
@@ -12,5 +16,28 @@
 
 
 
+1. Stop all running containers:
+docker stop $(docker ps -aq)
 
 
+2. Remove all containers:
+docker rm $(docker ps -aq)
+
+
+
+3. Remove all images:
+docker rmi $(docker images -q)
+
+
+4. Remove all volumes:
+docker volume rm $(docker volume ls -q)
+
+
+
+5. Remove all networks:
+docker network rm $(docker network ls -q)
+
+
+
+6. Prune the system to remove unused data:
+docker system prune -a --volumes

@@ -17,3 +17,8 @@ blobfile
 sentencepiece
 
 huggingface-hub
+
+
+
+diffusers
+accelerate

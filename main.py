@@ -14,6 +14,11 @@ from transformers import (
     BitsAndBytesConfig
 )
 from duckduckgo_search import DDGS
+from enum import Enum
+
+from typing import List
+
+
 
 # Retain the existing logging configuration
 logging.basicConfig(
@@ -22,68 +27,190 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Enhanced Settings with Open Model Support
+class ModelType(Enum):
+    TEXT = "text"
+    IMAGE = "image"
+    VIDEO = "video"
+    AUDIO = "audio"
+    CODE = "code"
+
+class ModelSize(Enum):
+    TINY = "tiny"      # < 1B parameters
+    SMALL = "small"    # 1-3B parameters
+    MEDIUM = "medium"  # 3-7B parameters
+    LARGE = "large"    # 7-13B parameters
+    XLARGE = "xlarge"  # 13B+ parameters
+
+class ModelInfo(BaseModel):
+    description: str
+    max_tokens: str
+    suggested_use: str
+    type: ModelType
+    size: ModelSize
+    requires_license: bool = False
+    requires_gpu: bool = False
+    additional_config: Optional[Dict] = None
+
 class Settings(BaseSettings):
     api_key: str = "default-api-key"
     api_keys: str = "default-api-key"  # Comma-separated list of valid API keys
     secret_key: str = "default-api-key"
-    default_model: str = "tiiuae/falcon-7b-instruct"
+    model_name: str = "lmsys/vicuna-7b-v1.5"
+    default_model: str = "lmsys/vicuna-7b-v1.5"
     max_tokens: int = 500
     host: str = "0.0.0.0"
     port: int = 8007
     debug: bool = False
 
-    # Dictionary of supported models with configurations
-    supported_models: Dict[str, Dict[str, str]] = {
-        "tiiuae/falcon-7b-instruct": {
-            "description": "Falcon 7B Instruct Model",
-            "max_tokens": "600",
-            "suggested_use": "Interactive conversations and tasks"
+    # Comprehensive model configurations
+    supported_models: Dict[str, ModelInfo] = {
+        # Large Language Models - Small Size (1-3B)
+        "lmsys/vicuna-7b-v1.5": {
+            "description": "Vicuna-7B - Open-source chat model",
+            "max_tokens": "4096",
+            "suggested_use": "General-purpose chat application",
+            "type": ModelType.TEXT,
+            "size": ModelSize.LARGE,
+            "requires_gpu": True
         },
-        "bigscience/bloom-7b1": {
-            "description": "BLOOM 7B Model",
-            "max_tokens": "650",
-            "suggested_use": "Multilingual text generation"
+        "lmsys/vicuna-13b-v1.5": {
+            "description": "Vicuna-13B - Larger, more capable version of Vicuna",
+            "max_tokens": "8192",
+            "suggested_use": "High-performance chat applications",
+            "type": ModelType.TEXT,
+            "size": ModelSize.XLARGE,
+            "requires_gpu": True
         },
-        "EleutherAI/gpt-neox-20b": {
-            "description": "GPT-NeoX 20B Language Model",
-            "max_tokens": "800",
-            "suggested_use": "Generative text tasks"
+        "huggingface/llama-2-7b-chat": {
+            "description": "Llama-2 7B - Open-source chat model by Meta",
+            "max_tokens": "4096",
+            "suggested_use": "General-purpose conversational agent",
+            "type": ModelType.TEXT,
+            "size": ModelSize.LARGE,
+            "requires_gpu": True
         },
-        "facebook/opt-6.7b-chat": {
-            "description": "OPT 6.7B Chat Model",
-            "max_tokens": "550",
-            "suggested_use": "Conversational AI"
+        "huggingface/llama-2-13b-chat": {
+            "description": "Llama-2 13B - More powerful version of Llama",
+            "max_tokens": "8192",
+            "suggested_use": "High-performance conversation and NLP tasks",
+            "type": ModelType.TEXT,
+            "size": ModelSize.XLARGE,
+            "requires_gpu": True
         },
-        "microsoft/DialoGPT-medium": {
-            "description": "Microsoft DialoGPT Medium",
-            "max_tokens": "500",
-            "suggested_use": "Conversational interactions"
+        "microsoft/phi-2": {
+            "description": "Microsoft Phi-2 - Compact but powerful 2.7B model",
+            "max_tokens": "2048",
+            "suggested_use": "General text and code generation",
+            "type": ModelType.TEXT,
+            "size": ModelSize.SMALL,
+            "requires_gpu": False
         },
-        "EleutherAI/pythia-6.9b-dedup": {
-            "description": "Pythia 6.9B Model",
-            "max_tokens": "550",
-            "suggested_use": "Generative tasks"
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0": {
+            "description": "TinyLlama - Efficient 1.1B chat model",
+            "max_tokens": "2048",
+            "suggested_use": "Lightweight chat applications",
+            "type": ModelType.TEXT,
+            "size": ModelSize.TINY,
+            "requires_gpu": False
         },
-        "bigcode/starcoder2-3b": {
-            "description": "StarCoder2 3B Model",
-            "max_tokens": "400",
-            "suggested_use": "Coding and technical tasks"
+        "stabilityai/stablelm-zephyr-3b": {
+            "description": "StableLM Zephyr 3B - Instruction-tuned model",
+            "max_tokens": "4096",
+            "suggested_use": "General conversation",
+            "type": ModelType.TEXT,
+            "size": ModelSize.SMALL,
+            "requires_gpu": True
         },
-        "stabilityai/stablelm-3b-4e1t": {
-            "description": "StableLM 3B Model",
-            "max_tokens": "450",
-            "suggested_use": "General conversation"
+        # Code Generation Models
+        "bigcode/starcoderbase-3b": {
+            "description": "StarCoderBase 3B - Lightweight code model",
+            "max_tokens": "4096",
+            "suggested_use": "Code generation for smaller deployments",
+            "type": ModelType.CODE,
+            "size": ModelSize.SMALL,
+            "requires_gpu": False
         },
-        "mosaicml/mpt-7b": {
-            "description": "MPT 7B Model",
-            "max_tokens": "600",
-            "suggested_use": "Diverse language tasks"
+
+        # Image Generation Models
+        "stabilityai/sdxl-turbo": {
+            "description": "SDXL Turbo - Fast image generation",
+            "max_tokens": "N/A",
+            "suggested_use": "Real-time image generation",
+            "type": ModelType.IMAGE,
+            "size": ModelSize.LARGE,
+            "requires_gpu": True,
+            "additional_config": {
+                "image_size": 1024,
+                "steps": 1
+            }
         },
-        "allenai/tk-instruct-3b-def": {
-            "description": "TK-Instruct 3B Model",
-            "max_tokens": "400",
-            "suggested_use": "Instruction following"
+        "stabilityai/stable-diffusion-xl-base-1.0": {
+            "description": "Stable Diffusion XL 1.0 - High quality image generation",
+            "max_tokens": "N/A",
+            "suggested_use": "High-quality image creation",
+            "type": ModelType.IMAGE,
+            "size": ModelSize.LARGE,
+            "requires_gpu": True,
+            "additional_config": {
+                "image_size": 1024,
+                "steps": 30
+            }
+        },
+        "runwayml/stable-diffusion-v1-5": {
+            "description": "Stable Diffusion 1.5 - Balanced image generation",
+            "max_tokens": "N/A",
+            "suggested_use": "General purpose image generation",
+            "type": ModelType.IMAGE,
+            "size": ModelSize.MEDIUM,
+            "requires_gpu": True,
+            "additional_config": {
+                "image_size": 512,
+                "steps": 20
+            }
+        },
+
+        # Video Generation Models
+        "stabilityai/stable-video-diffusion-img2vid": {
+            "description": "Stable Video Diffusion - Image to video generation",
+            "max_tokens": "N/A",
+            "suggested_use": "Converting images to short videos",
+            "type": ModelType.VIDEO,
+            "size": ModelSize.LARGE,
+            "requires_gpu": True,
+            "additional_config": {
+                "max_frames": 25,
+                "fps": 8
+            }
+        },
+        "damo-vilab/text-to-video-ms-1.7b": {
+            "description": "ModelScope Text2Video - Text to video generation",
+            "max_tokens": "N/A",
+            "suggested_use": "Generating videos from text descriptions",
+            "type": ModelType.VIDEO,
+            "size": ModelSize.MEDIUM,
+            "requires_gpu": True,
+            "additional_config": {
+                "max_frames": 16,
+                "fps": 8
+            }
+        },
+
+        # Specialized Language Models
+        "openchat/openchat-3.5-0106": {
+            "description": "OpenChat 3.5 - Open source chat model",
+            "max_tokens": "8192",
+            "suggested_use": "Open source chat alternative",
+            "type": ModelType.TEXT,
+            "size": ModelSize.LARGE,
+            "requires_gpu": True
+        },
+        "BAAI/bge-large-en-v1.5": {
+            "description": "BGE Large - Text embeddings model",
+            "max_tokens": "512",
+            "suggested_use": "Text embeddings and similarity",
+            "type": ModelType.TEXT,
+            "size": ModelSize.LARGE,
+            "requires_gpu": False
         }
     }
 
@@ -91,6 +218,21 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = 'utf-8'
 
+    def get_models_by_type(self, model_type: ModelType) -> Dict[str, ModelInfo]:
+        """Get all models of a specific type"""
+        return {k: v for k, v in self.supported_models.items() if v.type == model_type}
+
+    def get_models_by_size(self, size: ModelSize) -> Dict[str, ModelInfo]:
+        """Get all models of a specific size"""
+        return {k: v for k, v in self.supported_models.items() if v.size == size}
+
+    def get_gpu_required_models(self) -> Dict[str, ModelInfo]:
+        """Get all models that require GPU"""
+        return {k: v for k, v in self.supported_models.items() if v.requires_gpu}
+
+    def get_licensed_models(self) -> Dict[str, ModelInfo]:
+        """Get all models that require licenses"""
+        return {k: v for k, v in self.supported_models.items() if v.requires_license}
 settings = Settings()
 
 # Retain existing model classes
@@ -124,13 +266,13 @@ class SearchResult(BaseModel):
 # Enhanced AI Service with Multi-Model Support
 class AIService:
     def __init__(self):
-        self.models = {}  # Store multiple model instances
-        self.tokenizers = {}  # Store multiple tokenizers
+        self.models = {}
+        self.tokenizers = {}
         self.ddgs = None
         self.device = self._get_optimal_device()
-
+        self.current_model_name = None
+        
     def _get_optimal_device(self):
-        """Intelligently select the best available device."""
         if torch.cuda.is_available():
             logger.info(f"CUDA is available. Using GPU: {torch.cuda.get_device_name(0)}")
             return torch.device("cuda")
@@ -141,106 +283,150 @@ class AIService:
             logger.warning("No GPU available. Falling back to CPU.")
             return torch.device("cpu")
 
+    def _get_model_config(self, model_name: str) -> dict:
+        """Get the configuration for loading a specific model"""
+        base_config = {
+            "trust_remote_code": True,
+            "low_cpu_mem_usage": True,
+        }
+        
+        # Add device configuration based on available hardware
+        if self.device.type == 'cuda':
+            # Create quantization config for CUDA devices
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_threshold=6.0
+            )
+            base_config.update({
+                "device_map": "auto",
+                "quantization_config": quantization_config
+            })
+        
+        # Get model info from settings
+        model_info = settings.supported_models.get(model_name)
+        if not model_info:
+            raise ValueError(f"Model {model_name} not found in supported models")
+
+        # Add any model-specific configurations
+        if model_info.additional_config:
+            base_config.update(model_info.additional_config)
+
+        return base_config
+
     async def initialize(self):
-        """Initialize the default model and search service"""
+        """Initialize the AI service and load the default model"""
         try:
+            logger.info(f"Initializing service with default model: {settings.default_model}")
             await self._load_model(settings.default_model)
-            self.ddgs = DDGS()
-            logger.info("AI Service initialized successfully.")
         except Exception as e:
-            logger.error(f"Critical initialization error: {e}")
-            raise RuntimeError(f"Failed to initialize AI service: {e}")
+            logger.error(f"Failed to initialize AI service: {e}")
+            raise
 
     async def _load_model(self, model_name: str):
-        """Load a specific model"""
-        logger.info(f"Loading model: {model_name}")
-        
-        # Skip if already loaded
+        """Load a model and move it to the correct device"""
         if model_name in self.models:
+            if model_name != self.current_model_name:
+                await self._unload_current_model()
             return
 
         try:
-            # Load Tokenizer
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_name, 
-                use_fast=True,
-                trust_remote_code=True
-            )
+            # Get model configuration
+            model_config = self._get_model_config(model_name)
             
-            # Determine quantization based on device
-            quantization_config = (
-                BitsAndBytesConfig(
-                    load_in_8bit=True, 
-                    llm_int8_threshold=6.0
-                ) if self.device.type == 'cuda' else None
-            )
-
-            # Load Model
+            # Load tokenizer and model
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                torch_dtype=torch.float16 if self.device.type in ['cuda', 'mps'] else torch.float32,
-                device_map='auto',
-                quantization_config=quantization_config,
-                trust_remote_code=True,
-                low_cpu_mem_usage=True
+                **model_config,
+                torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32
             )
 
-            # Store in dictionaries
+            # Move model to device if not using device_map
+            if 'device_map' not in model_config:
+                model = model.to(self.device)
+
+            # Store model and tokenizer
             self.models[model_name] = model
             self.tokenizers[model_name] = tokenizer
-
+            self.current_model_name = model_name
+            
+            logger.info(f"Model {model_name} loaded successfully on {self.device}")
+            
         except Exception as e:
-            logger.error(f"Model loading failed for {model_name}: {e}")
+            logger.error(f"Error loading model {model_name}: {e}")
             raise
 
-    async def get_model(self, model_name: str):
-        """Retrieve a specific model, loading if not already initialized"""
-        if model_name not in self.models:
-            await self._load_model(model_name)
-        return self.models[model_name], self.tokenizers[model_name]
+    async def generate_response(self, model_name: str, prompt: str, generation_config: GenerationConfig):
+        """Generate a response using the specified model"""
+        try:
+            # Ensure the correct model is loaded
+            if model_name != self.current_model_name:
+                await self._load_model(model_name)
+
+            model = self.models[model_name]
+            tokenizer = self.tokenizers[model_name]
+
+            # Prepare inputs on the correct device
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+            # Generate response
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    generation_config=generation_config,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=tokenizer.eos_token_id
+                )
+
+            # Decode response
+            response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            response = response[len(prompt):].strip()  # Remove prompt from response
+            
+            return response
+
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            raise
+
+    async def _unload_current_model(self):
+        """Safely unload the current model"""
+        if self.current_model_name:
+            try:
+                if self.current_model_name in self.models:
+                    del self.models[self.current_model_name]
+                if self.current_model_name in self.tokenizers:
+                    del self.tokenizers[self.current_model_name]
+                torch.cuda.empty_cache()
+                self.current_model_name = None
+                logger.info("Successfully unloaded current model")
+            except Exception as e:
+                logger.error(f"Error unloading model: {e}")
+                raise
 
     async def search(self, query: str, max_results: int = 3) -> List[SearchResult]:
-        """Asynchronous search with thread pooling."""
-        def _search():
-            try:
-                results = []
-                for result in self.ddgs.text(query, max_results=max_results):
-                    results.append(SearchResult(
-                        title=result.get("title", ""),
-                        snippet=result.get("body", ""),
-                        url=result.get("href", "")
-                    ))
-                return results
-            except Exception as e:
-                logger.error(f"Search failed: {e}")
-                return []
-        
-        return await asyncio.to_thread(_search)
-
-    async def generate_response(self, model_name: str, prompt: str, generation_config: GenerationConfig) -> str:
-        """Generate response using a specific model"""
-        model, tokenizer = await self.get_model(model_name)
-        
+        """Perform web search and return results"""
         try:
-            inputs = tokenizer(
-                prompt, 
-                return_tensors="pt", 
-                truncation=True, 
-                max_length=2048
-            ).to(self.device)
-            
-            with torch.no_grad():
-                output_ids = model.generate(
-                    inputs['input_ids'],
-                    generation_config=generation_config
-                )
-            
-            response = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-            return response[len(prompt):].strip()
-        
+            if self.ddgs is None:
+                self.ddgs = DDGS()
+
+            search_results = []
+            async for r in self.ddgs.text(query, max_results=max_results):
+                search_results.append(SearchResult(
+                    title=r['title'],
+                    snippet=r['body'],
+                    url=r['link']
+                ))
+            return search_results
         except Exception as e:
-            logger.error(f"Response generation failed for {model_name}: {e}")
-            return "I apologize, but I couldn't generate a response."
+            logger.error(f"Search error: {e}")
+            return []  # Return empty list on error
+
+    async def cleanup(self):
+        """Cleanup resources"""
+        await self._unload_current_model()
+        if self.ddgs:
+            self.ddgs.close()
 
 # FastAPI Application Setup
 app = FastAPI(
