@@ -162,7 +162,7 @@ We welcome contributions! Here's how you can help:
 MIT License - See [LICENSE](LICENSE) for details.
 
 
-## ⚠️ Disclaimer
+## ⚠️ Disclaimer <a name="disclaimer"></a>
 
 This project is provided "as is" without any warranty whatsoever, express or implied, including but not limited to the implied warranties of merchantability, fitness for a particular purpose, and non-infringement.   
  In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.   
