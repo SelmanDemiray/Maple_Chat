@@ -1,4 +1,3 @@
-# main.py
 import logging
 from logging.handlers import RotatingFileHandler
 import asyncio
@@ -7,7 +6,7 @@ from typing import List, Optional, Dict, Annotated, Any
 from fastapi import FastAPI, HTTPException, Header, Depends, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator, ConfigDict, root_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 from contextlib import asynccontextmanager
 from functools import lru_cache
@@ -22,12 +21,11 @@ from transformers import (
     AutoTokenizer,
     GenerationConfig,
     BitsAndBytesConfig,
-    AutoConfig,
     CLIPProcessor,
     CLIPModel
 )
 from duckduckgo_search import DDGS
-from enum import Enum, auto
+from enum import Enum
 from dataclasses import dataclass
 from pathlib import Path
 import aiohttp
@@ -84,7 +82,7 @@ class ModelInfo(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     description: str
-    max_tokens: str
+    max_tokens: int  # Changed to int
     suggested_use: str
     type: ModelType
     size: ModelSize
@@ -112,8 +110,7 @@ class Settings(BaseSettings):
     model_config = ConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
-        extra='ignore',
-        protected_namespaces=('settings_',)
+        extra='ignore'
     )
     api_key: str = Field(..., env='API_KEY')
     api_keys: str = Field(..., env='API_KEYS')
@@ -132,7 +129,7 @@ class Settings(BaseSettings):
         try:
             with open(self.models_config_path) as f:
                 models_dict = json.load(f)
-            print("Supported Models:", models_dict)
+            logger.info("Supported Models loaded successfully.")  # Log successful loading
             return {
                 k: ModelInfo(**v) for k, v in models_dict.items()
             }
@@ -141,11 +138,11 @@ class Settings(BaseSettings):
             return {}
 
     def get_models_by_criteria(
-            self,
-            model_type: Optional[ModelType] = None,
-            size: Optional[ModelSize] = None,
-            requires_gpu: Optional[bool] = None,
-            requires_license: Optional[bool] = None
+        self,
+        model_type: Optional[ModelType] = None,
+        size: Optional[ModelSize] = None,
+        requires_gpu: Optional[bool] = None,
+        requires_license: Optional[bool] = None
     ) -> Dict[str, ModelInfo]:
         """Enhanced model filtering with multiple criteria"""
         models = self.supported_models
@@ -341,10 +338,10 @@ class AIService:
             raise
 
     async def generate_response(
-            self,
-            model_name: str,
-            prompt: str,
-            generation_config: GenerationConfig
+        self,
+        model_name: str,
+        prompt: str,
+        generation_config: GenerationConfig
     ) -> str:
         """Enhanced response generation with better error handling"""
         try:
@@ -377,10 +374,10 @@ class AIService:
             raise
 
     async def generate_image(
-            self,
-            model_name: str,
-            prompt: str,
-            num_images: int
+        self,
+        model_name: str,
+        prompt: str,
+        num_images: int
     ) -> List[str]:
         """Enhanced image generation with better error handling"""
         try:
@@ -414,9 +411,9 @@ class AIService:
             raise
 
     async def search(
-            self,
-            query: str,
-            max_results: int = 3
+        self,
+        query: str,
+        max_results: int = 3
     ) -> List[SearchResult]:
         """Enhanced search with async implementation and improved error handling"""
         try:
@@ -505,12 +502,12 @@ app.add_middleware(
 )
 
 @lru_cache()
-def get_settings() -> Settings:
+def get_settings():
     """Cached settings provider"""
     return Settings()
 
 async def verify_api_key(
-        api_key: Annotated[str, Header(alias="X-API-Key")]
+    api_key: Annotated[str, Header(alias="X-API-Key")]
 ) -> str:
     """Enhanced API key verification"""
     settings = get_settings()
@@ -523,8 +520,8 @@ async def verify_api_key(
     return api_key
 
 def build_prompt(
-        messages: List[Message],
-        search_results: List[SearchResult]
+    messages: List[Message],
+    search_results: List[SearchResult]
 ) -> str:
     """Enhanced prompt builder with better formatting"""
     parts = []
@@ -543,9 +540,9 @@ def build_prompt(
 
 @app.get("/models", response_model=Dict[str, Any])
 async def get_available_models(
-        model_type: Optional[ModelType] = None,
-        size: Optional[ModelSize] = None,
-        requires_gpu: Optional[bool] = None
+    model_type: Optional[ModelType] = None,
+    size: Optional[ModelSize] = None,
+    requires_gpu: Optional[bool] = None
 ):
     """Enhanced model information endpoint with filtering"""
     settings = get_settings()
@@ -563,9 +560,9 @@ async def get_available_models(
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
-        request: ChatRequest,
-        background_tasks: BackgroundTasks,
-        api_key: str = Depends(verify_api_key)
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verify_api_key)
 ):
     """Enhanced chat endpoint with background tasks and improved error handling"""
     try:
@@ -616,9 +613,9 @@ async def chat(
 
 @app.post("/image", response_model=ImageResponse)
 async def image(
-        request: ImageRequest,
-        background_tasks: BackgroundTasks,
-        api_key: str = Depends(verify_api_key)
+    request: ImageRequest,
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verify_api_key)
 ):
     """Enhanced image generation endpoint with background tasks and improved error handling"""
     try:
@@ -656,9 +653,9 @@ async def image(
         ) from e
 
 def log_chat_interaction(
-        request: ChatRequest,
-        response: str,
-        search_results: List[SearchResult]
+    request: ChatRequest,
+    response: str,
+    search_results: List[SearchResult]
 ):
     """Enhanced logging with structured data and search results"""
     try:
@@ -674,8 +671,8 @@ def log_chat_interaction(
         logger.error(f"Error logging chat interaction: {e}")
 
 def log_image_generation(
-        request: ImageRequest,
-        images: List[str]
+    request: ImageRequest,
+    images: List[str]
 ):
     """Enhanced logging for image generation requests"""
     try:
@@ -724,14 +721,20 @@ async def get_hardware_info():
 
     return hardware_info
 
+@app.get("/ping") 
+async def ping():
+    """
+    Simple ping endpoint to check server availability and latency.
+    """
+    return {"message": "pong"}
 
 # Health Check Endpoint
 @app.get("/health")
 async def health_check():
     return {
         "status": "healthy",
-        "default_model": settings.default_model,
-        "available_models": list(settings.supported_models.keys()),
+        "default_model": get_settings().default_model,  # Use get_settings()
+        "available_models": list(get_settings().supported_models.keys()),  # Use get_settings()
         "device": str(ai_service.device)
     }
 

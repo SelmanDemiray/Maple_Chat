@@ -153,6 +153,15 @@ volumes:
     driver: local
 ```
 
+## 🛡️ DevSecOps
+
+This project prioritizes security and uses the following tools:
+
+* **Snyk**:  Snyk helps find and fix vulnerabilities in your code, open source dependencies, containers, and infrastructure as code.
+    * To set up Snyk, you'll need to create a Snyk account and connect it to your GitHub repository.  Snyk will then automatically scan your code for vulnerabilities and provide recommendations for remediation. For more information, see the [Snyk documentation](https://docs.snyk.io/).
+* **SonarCloud**: SonarCloud is a cloud-based code analysis service that helps you improve code quality and security by identifying bugs, vulnerabilities, and code smells.
+    * To integrate SonarCloud, you'll need to create a SonarCloud account and add your project. You'll also need to configure your CI/CD pipeline to run SonarCloud analysis on each code change.  See the [SonarCloud documentation](https://sonarcloud.io/documentation/) for details.
+
 ## 🤝 Contributing
 
 We welcome contributions! Here's how you can help:

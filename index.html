@@ -26,15 +26,23 @@
             --timestamp-color: #6c757d;
             --error-bg: #f8d7da;
             --error-text: #721c24;
+            --model-tiny-bg: #f0fff0;
+            /* Light green for tiny */
             --model-small-bg: #CCEECC;
             /* Light green */
             --model-medium-bg: #FFFFCC;
             /* Light yellow */
             --model-large-bg: #FFCCCC;
             /* Light red */
+            --model-xlarge-bg: #e8b0b0;
+            /* Light orange for xlarge */
+            --model-tiny-color: #000;
             --model-small-color: #000;
             --model-medium-color: #000;
             --model-large-color: #000;
+            --model-xlarge-color: #000;
+            --category-border-color: #007bff;
+            /* Blue border for categories */
         }
 
         body.dark-mode {
@@ -54,15 +62,23 @@
             --timestamp-color: #aaa;
             --error-bg: #5d1b1b;
             --error-text: #ff6b6b;
+            --model-tiny-bg: #004d00;
+            /* Darker green for tiny */
             --model-small-bg: #006400;
             /* Darker green */
             --model-medium-bg: #DAA520;
             /* Darker yellow/gold */
             --model-large-bg: #8B0000;
             /* Darker red */
+            --model-xlarge-bg: #CC8500;
+            /* Darker orange for xlarge */
+            --model-tiny-color: #fff;
             --model-small-color: #fff;
             --model-medium-color: #000;
             --model-large-color: #fff;
+            --model-xlarge-color: #fff;
+            --category-border-color: #bb86fc;
+            /* Purple border for categories in dark mode */
         }
 
         * {
@@ -193,6 +209,10 @@
             width: 100%;
         }
 
+        #model-dropdown option[data-size="tiny"] {
+            background-color: var(--model-tiny-bg);
+            color: var(--model-tiny-color);
+        }
 
         #model-dropdown option[data-size="small"] {
             background-color: var(--model-small-bg);
@@ -207,6 +227,23 @@
         #model-dropdown option[data-size="large"] {
             background-color: var(--model-large-bg);
             color: var(--model-large-color);
+        }
+
+        #model-dropdown option[data-size="xlarge"] {
+            background-color: var(--model-xlarge-bg);
+            color: var(--model-xlarge-color);
+        }
+
+        #model-dropdown optgroup {
+            border-top: 2px solid var(--category-border-color);
+            /* Add a top border to optgroups */
+            padding-top: 5px;
+            /* Add some space above the category label */
+        }
+
+        #model-dropdown optgroup:first-of-type {
+            border-top: none;
+            /* Remove the border from the first category */
         }
 
         #chat-container {
@@ -478,6 +515,37 @@
             color: var(--button-bg);
             text-decoration: underline;
         }
+
+        #model-legend {
+            margin-top: 10px;
+            /* Add some space above the legend */
+        }
+
+        #model-legend ul {
+            list-style: none;
+            /* Remove bullet points */
+            padding: 0;
+            margin: 0;
+            display: flex;
+            /* Make legend items horizontal */
+            flex-wrap: wrap;
+            /* Allow wrapping if needed */
+            gap: 5px;
+            /* Add space between items */
+        }
+
+        #model-legend li {
+            /* No need for margin-bottom anymore */
+        }
+
+        #model-legend span {
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            /* Slightly smaller font size */
+            white-space: nowrap;
+            /* Prevent legend items from wrapping */
+        }
     </style>
 </head>
 
@@ -494,6 +562,26 @@
                     <p>Max Tokens: <span id="model-max-tokens"></span></p>
                     <p>Suggested Use: <span id="model-suggested-use"></span></p>
                     <p>Size: <span id="model-size"></span></p>
+                    <div id="model-legend">
+                        <h4>Legend:</h4>
+                        <ul>
+                            <li><span
+                                    style="background-color: var(--model-tiny-bg); color: var(--model-tiny-color); padding: 2px 5px; border-radius: 3px;">Tiny</span>
+                            </li>
+                            <li><span
+                                    style="background-color: var(--model-small-bg); color: var(--model-small-color); padding: 2px 5px; border-radius: 3px;">Small</span>
+                            </li>
+                            <li><span
+                                    style="background-color: var(--model-medium-bg); color: var(--model-medium-color); padding: 2px 5px; border-radius: 3px;">Medium</span>
+                            </li>
+                            <li><span
+                                    style="background-color: var(--model-large-bg); color: var(--model-large-color); padding: 2px 5px; border-radius: 3px;">Large</span>
+                            </li>
+                            <li><span
+                                    style="background-color: var(--model-xlarge-bg); color: var(--model-xlarge-color); padding: 2px 5px; border-radius: 3px;">XLarge</span>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div id="chat-history">
@@ -548,7 +636,7 @@
         // Configuration Management
         const CONFIG = {
             API_BASE_URL: 'http://localhost:8007',
-            API_KEY: 'default-api-key',
+            API_KEY: 'YOUR_ACTUAL_API_KEY', // Replace with your actual API key
             MAX_TOKENS: 500,
             TEMPERATURE: 0.7,
             TOP_P: 0.9,
@@ -743,7 +831,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${CONFIG.API_KEY}`
+                        'X-API-Key': CONFIG.API_KEY
                     },
                     body: JSON.stringify({
                         model: state.currentModel,
@@ -757,7 +845,7 @@
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    const errorMessage = errorData.error || 'Unknown error occurred.';
+                    const errorMessage = errorData.detail || 'Unknown error occurred.';
                     addMessage(errorMessage, 'assistant', true);
                 } else {
                     const data = await response.json();
@@ -786,7 +874,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${CONFIG.API_KEY}`
+                        'X-API-Key': CONFIG.API_KEY
                     },
                     body: JSON.stringify({
                         model: state.currentModel,
@@ -797,7 +885,7 @@
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    const errorMessage = errorData.error || 'Unknown error occurred.';
+                    const errorMessage = errorData.detail || 'Unknown error occurred.';
                     addMessage(errorMessage, 'assistant', true);
                 } else {
                     const data = await response.json();
@@ -827,7 +915,7 @@
             try {
                 const response = await fetch(`${CONFIG.API_BASE_URL}/models`, {
                     headers: {
-                        'Authorization': `Bearer ${CONFIG.API_KEY}`
+                        'X-API-Key': CONFIG.API_KEY
                     }
                 });
 
@@ -836,12 +924,38 @@
                 }
 
                 const data = await response.json();
+
+                // Check if data.models is defined and not empty
+                if (!data.models || Object.keys(data.models).length === 0) {
+                    console.error("No models found in the response:", data);
+                    addMessage('No available models found.', 'assistant', true);
+                    return; // Exit the function early
+                }
+
                 state.models = Object.entries(data.models).map(([id, model]) => ({ id, ...model }));
                 state.currentModel = data.default_model;
 
-                DOM.modelDropdown.innerHTML = state.models.map(model =>
-                    `<option value="<span class="math-inline">\{model\.id\}" data\-type\="</span>{model.type}" data-size="<span class="math-inline">\{model\.size\}"\></span>{model.id}</option>`
-                ).join('');
+                // Categorize models by type
+                const modelsByType = {};
+                state.models.forEach(model => {
+                    if (!modelsByType[model.type]) {
+                        modelsByType[model.type] = [];
+                    }
+                    modelsByType[model.type].push(model);
+                });
+
+                // Generate options for each model type
+                let optionsHTML = '';
+                for (const type in modelsByType) {
+                    optionsHTML += `<optgroup label="${type.toUpperCase()}">`;
+                    modelsByType[type].forEach(model => {
+                        // Corrected option tag generation:
+                        optionsHTML += `<option value="${model.id}" data-type="${model.type}" data-size="${model.size}">${model.id}</option>`;
+                    });
+                    optionsHTML += `</optgroup>`;
+                }
+
+                DOM.modelDropdown.innerHTML = optionsHTML;
 
                 // Add event listener to update hover box
                 DOM.modelDropdown.addEventListener('change', () => {
@@ -873,7 +987,7 @@
         async function getNetworkLatency() {
             const start = Date.now();
             try {
-                const response = await fetch(`${CONFIG.API_BASE_URL}/ping`);
+                const response = await fetch(`${CONFIG.API_BASE_URL}/ping`); // Replace with your ping endpoint
                 if (response.ok) {
                     const end = Date.now();
                     return end - start;
@@ -900,10 +1014,12 @@
 
             const cpuFactor = 1 + (hardware.cpu_cores / 16);
 
+            // Adjust modelFactor based on your actual model performance
             const modelFactor = {
                 "gpt-3.5-turbo": 1.0,
                 "gpt-4": 1.8,
-                "some-other-model": 0.8,
+                "lmsys/vicuna-7b-v1.5": 0.8, // Example: Adjust as needed
+                // ... add other models
             }[model.id] || 1;
 
             let estimatedTime = baseTime * gpuFactor * cpuFactor * modelFactor;
@@ -930,12 +1046,12 @@
 
                     const latency = await getNetworkLatency();
                     const estimation = estimateGenerationTime(currentModel, hardwareInfoCache, latency);
-                    document.getElementById('estimation-info').innerHTML = `Estimated time: ${estimation}`;
+                    document.getElementById('estimation-info').textContent = `Estimated time: ${estimation}`; // Use textContent
 
                 } catch (error) {
                     console.error('Error fetching hardware or estimating time:', error);
                     const estimation = estimateGenerationTime(currentModel, { gpu: "cpu", cpu_cores: 4 }, 500);
-                    document.getElementById('estimation-info').innerHTML = `Estimated time: ${estimation} (fallback)`;
+                    document.getElementById('estimation-info').textContent = `Estimated time: ${estimation} (fallback)`;
                 }
             }
         }
