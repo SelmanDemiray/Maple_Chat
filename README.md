@@ -216,4 +216,4 @@ The following uses of the software are strictly prohibited:
 * **Using the software to engage in or promote any form of cyberbullying or online harassment.**
 * **Using the software commercially without explicit permission from the copyright holders.**
 
-**Jurisdiction and Governing Law:** Users are subject to the laws of their respective jurisdictions. In the absence of specific local laws relevant to AI usage, the laws of Canada shall govern the use of this software and any dispute arising out of such use. By using this software, users acknowledge and agree to these terms and conditions.
+**Jurisdiction and Governing Law:** While users are subject to the laws of their respective jurisdictions, Canadian law will always be used to interpret and assess any matters related to AI usage and regulations. This includes, but is not limited to, data privacy, intellectual property, and content generation. By using this software, users acknowledge and agree to these terms and conditions. 
