@@ -416,12 +416,13 @@
         }
 
         #chat-history {
-            margin-top: 20px;
-            /* Add some space above chat history */
+            margin-top: auto;
+            /* Push to bottom */
             overflow-y: auto;
-            /* Make chat history scrollable */
-            max-height: 200px;
-            /* Limit the height of the chat history */
+            flex-grow: 1;
+            /* Allow chat history to grow and fill available space */
+            max-height: calc(100% - 250px);
+            /* Adjust 250px based on the combined height of other elements */
         }
 
         #history-list {
@@ -434,6 +435,9 @@
             border-bottom: 1px solid var(--input-border);
             cursor: pointer;
             transition: background-color 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         #history-list li:hover {
@@ -447,7 +451,6 @@
 
         #new-chat-button {
             margin-top: 10px;
-            /* Add space above the button */
             background-color: var(--button-bg);
             color: white;
             border: none;
@@ -459,6 +462,21 @@
 
         #new-chat-button:hover {
             background-color: var(--button-hover-bg);
+        }
+
+        .delete-chat-button {
+            background-color: transparent;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 0.8em;
+            padding: 0;
+            margin-left: 5px;
+        }
+
+        .delete-chat-button:hover {
+            color: var(--button-bg);
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -478,7 +496,6 @@
                     <p>Size: <span id="model-size"></span></p>
                 </div>
             </div>
-
             <div id="chat-history">
                 <h3>Chat History</h3>
                 <ul id="history-list"></ul>
@@ -546,7 +563,7 @@
             currentModel: null,
             chatHistory: [],
             sidebarCollapsed: false,
-            currentChatIndex: 0 // Add this
+            currentChatIndex: 0
         };
 
         // DOM Element References
@@ -562,7 +579,7 @@
             sidebar: document.getElementById('sidebar'),
             sidebarToggle: document.getElementById('sidebar-toggle'),
             progressBar: document.querySelector('.progress-bar'),
-            newChatButton: document.getElementById('new-chat-button') // Add this
+            newChatButton: document.getElementById('new-chat-button')
         };
 
         // Theme Management
@@ -612,7 +629,7 @@
 
         // Local Storage Management
         function updateLocalStorage() {
-            const chatKey = `chatMessages_${state.currentChatIndex}`; // Unique key for each chat
+            const chatKey = `chatMessages_${state.currentChatIndex}`;
             localStorage.setItem(chatKey, JSON.stringify(state.messages));
 
             const currentChat = {
@@ -637,7 +654,24 @@
             DOM.historyList.innerHTML = '';
             state.chatHistory.forEach(chat => {
                 const listItem = document.createElement('li');
-                listItem.textContent = `Chat ${chat.chatIndex + 1} - ${new Date(chat.timestamp).toLocaleString()}`;
+
+                // Create a span for the chat title
+                const chatTitleSpan = document.createElement('span');
+                chatTitleSpan.textContent = `Chat ${chat.chatIndex + 1} - ${new Date(chat.timestamp).toLocaleString()}`;
+
+                // Create the delete button
+                const deleteButton = document.createElement('button');
+                deleteButton.classList.add('delete-chat-button');
+                deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteButton.addEventListener('click', (event) => {
+                    event.stopPropagation(); // Prevent click from propagating to list item
+                    deleteChat(chat.chatIndex);
+                });
+
+                // Append the title and button to the list item
+                listItem.appendChild(chatTitleSpan);
+                listItem.appendChild(deleteButton);
+
                 listItem.addEventListener('click', () => loadHistoricalChat(chat.chatIndex));
 
                 // Highlight the active chat
@@ -647,6 +681,28 @@
 
                 DOM.historyList.appendChild(listItem);
             });
+        }
+
+        function deleteChat(index) {
+            // Remove the chat from localStorage
+            const chatKey = `chatMessages_${index}`;
+            localStorage.removeItem(chatKey);
+
+            // Remove the chat from chat history
+            state.chatHistory = state.chatHistory.filter(chat => chat.chatIndex !== index);
+
+            // If the current chat is deleted, load the previous chat or create a new one
+            if (state.currentChatIndex === index) {
+                if (state.chatHistory.length > 0) {
+                    state.currentChatIndex = state.chatHistory[0].chatIndex;
+                    loadHistoricalChat(state.currentChatIndex);
+                } else {
+                    createNewChat();
+                }
+            } else {
+                // Update the UI
+                updateLocalStorage();
+            }
         }
 
         function loadHistoricalChat(index) {
@@ -759,7 +815,7 @@
         // Loading Indicator
         function showLoadingIndicator() {
             DOM.loadingIndicator.style.display = 'flex';
-            DOM.progressBar.style.width = '0%'; // Reset the progress bar
+            DOM.progressBar.style.width = '0%';
         }
 
         function hideLoadingIndicator() {
@@ -817,21 +873,21 @@
         async function getNetworkLatency() {
             const start = Date.now();
             try {
-                const response = await fetch(`${CONFIG.API_BASE_URL}/ping`); // A simple ping endpoint
+                const response = await fetch(`${CONFIG.API_BASE_URL}/ping`);
                 if (response.ok) {
                     const end = Date.now();
-                    return end - start; // Latency in milliseconds
+                    return end - start;
                 }
             } catch (error) {
                 console.error("Error pinging server:", error);
             }
-            return 500; // Default latency if ping fails (0.5 seconds)
+            return 500;
         }
 
         function estimateGenerationTime(model, hardware, latency = 0) {
-            const enc = tiktoken.encoding_for_model(model.id); // Get the encoding for the model
-            const tokens = enc.encode(DOM.inputField.value.trim()).length; // Count tokens accurately
-            let baseTime = tokens * 0.2; // Base time per token
+            const enc = tiktoken.encoding_for_model(model.id);
+            const tokens = enc.encode(DOM.inputField.value.trim()).length;
+            let baseTime = tokens * 0.2;
 
             const gpuFactor = {
                 "cpu": 6,
@@ -840,34 +896,31 @@
                 "nvidia geforce rtx 3090": 0.9,
                 "nvidia geforce rtx 4090": 0.5,
                 "amd radeon rx 7900 xtx": 0.8,
-                // ... add more GPUs as needed
-            }[hardware.gpu.toLowerCase()] || 2; // Default for unknown GPU
+            }[hardware.gpu.toLowerCase()] || 2;
 
             const cpuFactor = 1 + (hardware.cpu_cores / 16);
 
-            const modelFactor = { // Model Size Adjustment Factor
+            const modelFactor = {
                 "gpt-3.5-turbo": 1.0,
                 "gpt-4": 1.8,
                 "some-other-model": 0.8,
-                // ... add more models with specific factors as needed
-            }[model.id] || 1; // Default if model not found
+            }[model.id] || 1;
 
             let estimatedTime = baseTime * gpuFactor * cpuFactor * modelFactor;
-            estimatedTime += latency / 1000; // Add latency (in seconds) to the estimate
+            estimatedTime += latency / 1000;
 
-            // Clamps (adjust as needed)
-            estimatedTime = Math.max(estimatedTime, 1); // Minimum 1 second
-            estimatedTime = Math.min(estimatedTime, 60); // Maximum 60 seconds
+            estimatedTime = Math.max(estimatedTime, 1);
+            estimatedTime = Math.min(estimatedTime, 60);
 
             return estimatedTime < 2 ? "Approximately 1 second" : `Approximately ${Math.round(estimatedTime)} seconds`;
         }
 
-        let hardwareInfoCache = null; // Cache for hardware info
+        let hardwareInfoCache = null;
         async function updateEstimationInfo() {
             const currentModel = state.models.find(model => model.id === state.currentModel);
             if (currentModel) {
                 try {
-                    if (!hardwareInfoCache) { // Fetch if not cached
+                    if (!hardwareInfoCache) {
                         const response = await fetch(`${CONFIG.API_BASE_URL}/hardware`);
                         if (!response.ok) {
                             throw new Error('Failed to fetch hardware info');
@@ -945,8 +998,8 @@
                 state.chatHistory = JSON.parse(savedChatHistory);
             }
 
-            state.currentChatIndex = 0; // Initialize the chat index
-            loadHistoricalChat(state.currentChatIndex); // Load the initial chat
+            state.currentChatIndex = 0;
+            loadHistoricalChat(state.currentChatIndex);
         }
 
         initialize();
