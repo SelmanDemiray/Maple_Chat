@@ -11,26 +11,28 @@
     <style>
         :root {
             --bg-color: #f7f7f7;
-            --text-color: #1e1e1e;
-            --user-message-bg: #e0f7fa;
-            --assistant-message-bg: #eceff1;
+            --text-color: #333;
+            --user-message-bg: #007bff;
+            --user-message-color: white;
+            --assistant-message-bg: #f0f0f0;
             --input-bg: #ffffff;
-            --input-border: #ccc;
+            --input-border: #ced4da;
             --button-bg: #007bff;
             --button-hover-bg: #0056b3;
-            --scrollbar-bg: #ddd;
-            --scrollbar-thumb: #888;
+            --scrollbar-bg: #f1f1f1;
+            --scrollbar-thumb: #adb5bd;
             --card-bg: #ffffff;
-            --hover-bg: #f0f0f0;
-            --timestamp-color: #999;
-            --error-bg: #ffebee;
-            --error-text: #d32f2f;
+            --hover-bg: #e9ecef;
+            --timestamp-color: #6c757d;
+            --error-bg: #f8d7da;
+            --error-text: #721c24;
         }
 
         body.dark-mode {
             --bg-color: #121212;
             --text-color: #e0e0e0;
             --user-message-bg: #304ffe;
+            --user-message-color: white;
             --assistant-message-bg: #333333;
             --input-bg: #1f1f1f;
             --input-border: #444;
@@ -65,6 +67,34 @@
         #app-container {
             display: flex;
             height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #app-container::before {
+            content: "";
+            background-image: url("logo.png");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: cover;
+            opacity: 0.05;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            animation: subtleTrickle 20s linear infinite alternate;
+        }
+
+        @keyframes subtleTrickle {
+            0% {
+                transform: translate(0, 0);
+            }
+
+            100% {
+                transform: translate(-50px, -50px);
+            }
         }
 
         #sidebar {
@@ -77,6 +107,7 @@
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            z-index: 1;
         }
 
         #chat-section {
@@ -86,21 +117,7 @@
             padding: 20px;
             position: relative;
             overflow: hidden;
-        }
-
-        #chat-section::before {
-            content: "";
-            background-image: url("logo.png");
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: cover;
-            opacity: 0.1;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
+            z-index: 1;
         }
 
         #chat-header {
@@ -113,10 +130,40 @@
             z-index: 1;
         }
 
-        #model-info {
+        #current-model-info {
             display: flex;
             align-items: center;
             gap: 10px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--input-border);
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            flex-wrap: wrap;
+        }
+
+        #current-model-info div {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        #current-model-info span {
+            font-weight: bold;
+        }
+
+        #estimation-info {
+            font-size: 0.8em;
+            color: var(--timestamp-color);
+        }
+
+        #model-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            position: relative;
         }
 
         #model-dropdown {
@@ -125,6 +172,7 @@
             border: 1px solid var(--input-border);
             padding: 8px;
             border-radius: 5px;
+            width: 100%;
         }
 
         #chat-container {
@@ -166,7 +214,7 @@
         .user-message {
             background-color: var(--user-message-bg);
             align-self: flex-end;
-            color: var(--text-color);
+            color: var(--user-message-color);
         }
 
         .assistant-message {
@@ -358,13 +406,22 @@
         /* Sidebar toggle button */
         #sidebar-toggle {
             position: absolute;
-            top: 10px;
+            top: 15px;
+            /* Moved down slightly */
             right: 10px;
-            background-color: transparent;
-            border: none;
-            padding: 5px;
+            background-color: var(--input-bg);
+            /* Added background color */
+            border: 1px solid var(--input-border);
+            /* Added border */
+            padding: 8px;
+            border-radius: 5px;
             cursor: pointer;
             z-index: 2;
+        }
+
+        #sidebar-toggle i {
+            font-size: 1.2em;
+            /* Slightly larger icon */
         }
 
         /* Theme toggle button at the bottom */
@@ -391,6 +448,25 @@
         #sidebar.collapsed #chat-history {
             display: none;
         }
+
+        /* Model Info Box */
+        .model-info-box {
+            display: none;
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            background-color: var(--card-bg);
+            border: 1px solid var(--input-border);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 3;
+            min-width: 200px;
+            max-width: 300px;
+        }
+
+        #model-info:hover .model-info-box {
+            display: block;
+        }
     </style>
 </head>
 
@@ -402,6 +478,12 @@
             </button>
             <div id="model-info">
                 <select id="model-dropdown"></select>
+                <div id="model-info-box" class="model-info-box">
+                    <p id="model-description"></p>
+                    <p>Max Tokens: <span id="model-max-tokens"></span></p>
+                    <p>Suggested Use: <span id="model-suggested-use"></span></p>
+                    <p>Size: <span id="model-size"></span></p>
+                </div>
             </div>
             <div id="chat-history">
                 <h3>Chat History</h3>
@@ -413,6 +495,14 @@
         </div>
 
         <div id="chat-section">
+            <div id="chat-header">
+                <div id="current-model-info">
+                    <div>
+                        Model: <span id="current-model-name"></span>
+                    </div>
+                    <div id="estimation-info"></div>
+                </div>
+            </div>
             <div id="chat-container"></div>
 
             <div id="loading-indicator" class="loading-indicator">
@@ -669,11 +759,87 @@
                 state.currentModel = data.default_model;
 
                 DOM.modelDropdown.innerHTML = state.models.map(model =>
-                    `<option value="${model.id}" data-type="${model.type}">${model.description}</option>`
+                    `<option value="${model.id}" data-size="${model.size}">${model.id}</option>`
                 ).join('');
+
+                // Add event listener to update hover box
+                DOM.modelDropdown.addEventListener('change', () => {
+                    const selectedModel = state.models.find(model => model.id === DOM.modelDropdown.value);
+                    if (selectedModel) {
+                        document.getElementById('model-description').textContent = selectedModel.description;
+                        document.getElementById('model-max-tokens').textContent = selectedModel.max_tokens;
+                        document.getElementById('model-suggested-use').textContent = selectedModel.suggested_use;
+                        document.getElementById('model-size').textContent = selectedModel.size;
+                    }
+                });
+
+                // Update current model info in the header
+                updateCurrentModelInfo();
             } catch (error) {
                 console.error('Error fetching models:', error);
                 addMessage('Failed to load available models.', 'assistant', true);
+            }
+        }
+
+        function updateCurrentModelInfo() {
+            const currentModel = state.models.find(model => model.id === state.currentModel);
+            if (currentModel) {
+                document.getElementById('current-model-name').textContent = currentModel.id;
+            }
+        }
+
+        // Estimation Handling
+        function estimateGenerationTime(model, hardware) {
+            const tokens = DOM.inputField.value.trim().split(/\s+/).length;
+            let baseTime = tokens * 0.1; // Increased base time per token
+
+            // Adjust estimation based on hardware (updated values)
+            switch (hardware) {
+                case "cpu":
+                    baseTime *= 5; // CPU is significantly slower
+                    break;
+                case "nvidia geforce rtx 3080":
+                    baseTime *= 1; // RTX 3080 is the baseline
+                    break;
+                // Add more cases for other hardware as needed
+                default:
+                    baseTime *= 2; // Default to a moderate speed
+                    break;
+            }
+
+            // More nuanced sizeFactor values
+            const sizeFactor = { small: 1, medium: 1.5, large: 2 }[model.size] || 1;
+            let estimatedTime = baseTime * sizeFactor;
+
+            // Ensure minimum estimation time of at least 1 second
+            estimatedTime = Math.max(estimatedTime, 1);
+
+            return estimatedTime < 2
+                ? "Approximately 1 second"
+                : `Approximately ${Math.round(estimatedTime)} seconds`;
+        }
+
+        async function updateEstimationInfo() {
+            const currentModel = state.models.find(model => model.id === state.currentModel);
+            if (currentModel) {
+                try {
+                    // Fetch hardware info from the backend
+                    const response = await fetch(`${CONFIG.API_BASE_URL}/hardware`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch hardware info');
+                    }
+                    const data = await response.json();
+                    const hardware = data.hardware;
+
+                    const estimation = estimateGenerationTime(currentModel, hardware);
+                    document.getElementById('estimation-info').innerHTML = `Estimated time: ${estimation}`;
+
+                } catch (error) {
+                    console.error('Error fetching hardware or estimating time:', error);
+                    // Fallback to a simple estimation if hardware info is unavailable
+                    const estimation = estimateGenerationTime(currentModel, "cpu");
+                    document.getElementById('estimation-info').innerHTML = `Estimated time: ${estimation}`;
+                }
             }
         }
 
@@ -706,14 +872,18 @@
 
         DOM.modelDropdown.addEventListener('change', (event) => {
             state.currentModel = event.target.value;
+            updateCurrentModelInfo();
+            updateEstimationInfo();
         });
+
+        DOM.inputField.addEventListener('input', updateEstimationInfo);
 
         DOM.themeToggle.addEventListener('click', toggleTheme);
 
         // Sidebar toggle
         DOM.sidebarToggle.addEventListener('click', () => {
             state.sidebarCollapsed = !state.sidebarCollapsed;
-            DOM.sidebar.classList.toggle('collapsed', state.sidebarCollapsed); // Toggle class
+            DOM.sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
             DOM.sidebar.style.width = state.sidebarCollapsed ? '50px' : '250px';
             DOM.sidebarToggle.innerHTML = state.sidebarCollapsed
                 ? '<i class="fas fa-angle-right"></i>'

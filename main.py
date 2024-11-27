@@ -132,6 +132,7 @@ class Settings(BaseSettings):
         try:
             with open(self.models_config_path) as f:
                 models_dict = json.load(f)
+            print("Supported Models:", models_dict)
             return {
                 k: ModelInfo(**v) for k, v in models_dict.items()
             }
@@ -688,7 +689,32 @@ def log_image_generation(
     except Exception as e:
         logger.error(f"Error logging image generation: {e}")
 
+
+@app.get("/hardware")
+async def get_hardware_info():
+    """Endpoint to return hardware information."""
+    if torch.cuda.is_available():
+        device_name = torch.cuda.get_device_name(0)
+        hardware = device_name.lower()  # e.g., "nvidia geforce rtx 3080"
+    elif torch.backends.mps.is_available():
+        hardware = "apple silicon gpu"
+    else:
+        hardware = "cpu"
+    return {"hardware": hardware}
+
+
+# Health Check Endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "default_model": settings.default_model,
+        "available_models": list(settings.supported_models.keys()),
+        "device": str(ai_service.device)
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     settings = get_settings()
-    uvicorn.run(app, host=settings.host, port=settings.port, debug=settings.debug)
+    uvicorn.run(app, host=settings.host, port=settings.port)
