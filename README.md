@@ -4,8 +4,30 @@
 A powerful, extensible, and easy-to-deploy platform for AI-driven conversations and multimodal interactions. This platform supports various AI models for text, image, audio, and code generation, designed with customization and scalability in mind.
 
 <a href="#disclaimer">
-  <button>Disclaimer</button>
-</a> 
+  <button style="
+    background-color: #ff4d4d;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 16px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    animation: pulse 2s infinite; /* Add animation */
+    ">
+    ⚠️ Disclaimer ⚠️
+  </button>
+</a>
+
+<style>
+  @keyframes pulse { 
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+</style>
 
 ## ✨ Key Features
 
