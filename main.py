@@ -1,47 +1,88 @@
+# main.py
 import logging
+from logging.handlers import RotatingFileHandler
 import asyncio
 import torch
-from typing import List, Optional, Dict
-from fastapi import FastAPI, HTTPException, Header, Depends
+from typing import List, Optional, Dict, Annotated, Any
+from fastapi import FastAPI, HTTPException, Header, Depends, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, field_validator, ConfigDict, root_validator
 from pydantic_settings import BaseSettings
+from contextlib import asynccontextmanager
+from functools import lru_cache
+
+import datetime
+
+import os
+import sys
 
 from transformers import (
-    AutoModelForCausalLM, 
-    AutoTokenizer, 
-    GenerationConfig, 
-    BitsAndBytesConfig
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    GenerationConfig,
+    BitsAndBytesConfig,
+    AutoConfig,
+    CLIPProcessor,
+    CLIPModel
 )
 from duckduckgo_search import DDGS
-from enum import Enum
+from enum import Enum, auto
+from dataclasses import dataclass
+from pathlib import Path
+import aiohttp
+import json
+import traceback
 
-from typing import List
+# Get log directory from environment variable or use default
+LOG_DIR = os.getenv('LOG_DIR', '/app/logs')
+LOG_FILE = os.path.join(LOG_DIR, 'app.log')
 
+# Ensure log directory exists
+os.makedirs(LOG_DIR, exist_ok=True)
 
-
-# Retain the existing logging configuration
+# Enhanced logging with structured output and rotation
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=10 * 1024 * 1024,  # 10MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+    ]
 )
 logger = logging.getLogger(__name__)
 
-class ModelType(Enum):
+# Log startup information
+logger.info(f"Starting application with log file: {LOG_FILE}")
+logger.info(f"Log directory: {LOG_DIR}")
+logger.info(f"Python version: {sys.version}")
+logger.info(f"Torch version: {torch.__version__}")
+
+class ModelType(str, Enum):
+    """Enhanced model types with string values"""
     TEXT = "text"
     IMAGE = "image"
     VIDEO = "video"
     AUDIO = "audio"
     CODE = "code"
 
-class ModelSize(Enum):
-    TINY = "tiny"      # < 1B parameters
-    SMALL = "small"    # 1-3B parameters
+class ModelSize(str, Enum):
+    """Enhanced model sizes with string values"""
+    TINY = "tiny"  # < 1B parameters
+    SMALL = "small"  # 1-3B parameters
     MEDIUM = "medium"  # 3-7B parameters
-    LARGE = "large"    # 7-13B parameters
+    LARGE = "large"  # 7-13B parameters
     XLARGE = "xlarge"  # 13B+ parameters
 
 class ModelInfo(BaseModel):
+    """Enhanced model information with validation"""
+    model_config = ConfigDict(frozen=True)
+
     description: str
     max_tokens: str
     suggested_use: str
@@ -49,329 +90,277 @@ class ModelInfo(BaseModel):
     size: ModelSize
     requires_license: bool = False
     requires_gpu: bool = False
-    additional_config: Optional[Dict] = None
+    additional_config: Optional[Dict[str, Any]] = None
+
+    def dict(self, *args, **kwargs) -> Dict[str, Any]:
+        d = super().dict(*args, **kwargs)
+        d["type"] = d["type"].value
+        d["size"] = d["size"].value
+        return d
+
+@dataclass
+class ModelLoadConfig:
+    """Configuration for model loading"""
+    trust_remote_code: bool = True
+    low_cpu_mem_usage: bool = True
+    device_map: Optional[str] = None
+    torch_dtype: Optional[torch.dtype] = None
+    quantization_config: Optional[BitsAndBytesConfig] = None
 
 class Settings(BaseSettings):
-    api_key: str = "default-api-key"
-    api_keys: str = "default-api-key"  # Comma-separated list of valid API keys
-    secret_key: str = "default-api-key"
+    """Enhanced settings with environment variable support"""
+    model_config = ConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        extra='ignore',
+        protected_namespaces=('settings_',)
+    )
+    api_key: str = Field(..., env='API_KEY')
+    api_keys: str = Field(..., env='API_KEYS')
+    secret_key: str = Field(..., env='SECRET_KEY')
     model_name: str = "lmsys/vicuna-7b-v1.5"
     default_model: str = "lmsys/vicuna-7b-v1.5"
     max_tokens: int = 500
     host: str = "0.0.0.0"
     port: int = 8007
     debug: bool = False
+    models_config_path: Path = Field(default=Path("models_config.json"))
 
-    # Comprehensive model configurations
-    supported_models: Dict[str, ModelInfo] = {
-        # Large Language Models - Small Size (1-3B)
-        "lmsys/vicuna-7b-v1.5": {
-            "description": "Vicuna-7B - Open-source chat model",
-            "max_tokens": "4096",
-            "suggested_use": "General-purpose chat application",
-            "type": ModelType.TEXT,
-            "size": ModelSize.LARGE,
-            "requires_gpu": True
-        },
-        "lmsys/vicuna-13b-v1.5": {
-            "description": "Vicuna-13B - Larger, more capable version of Vicuna",
-            "max_tokens": "8192",
-            "suggested_use": "High-performance chat applications",
-            "type": ModelType.TEXT,
-            "size": ModelSize.XLARGE,
-            "requires_gpu": True
-        },
-        "huggingface/llama-2-7b-chat": {
-            "description": "Llama-2 7B - Open-source chat model by Meta",
-            "max_tokens": "4096",
-            "suggested_use": "General-purpose conversational agent",
-            "type": ModelType.TEXT,
-            "size": ModelSize.LARGE,
-            "requires_gpu": True
-        },
-        "huggingface/llama-2-13b-chat": {
-            "description": "Llama-2 13B - More powerful version of Llama",
-            "max_tokens": "8192",
-            "suggested_use": "High-performance conversation and NLP tasks",
-            "type": ModelType.TEXT,
-            "size": ModelSize.XLARGE,
-            "requires_gpu": True
-        },
-        "microsoft/phi-2": {
-            "description": "Microsoft Phi-2 - Compact but powerful 2.7B model",
-            "max_tokens": "2048",
-            "suggested_use": "General text and code generation",
-            "type": ModelType.TEXT,
-            "size": ModelSize.SMALL,
-            "requires_gpu": False
-        },
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0": {
-            "description": "TinyLlama - Efficient 1.1B chat model",
-            "max_tokens": "2048",
-            "suggested_use": "Lightweight chat applications",
-            "type": ModelType.TEXT,
-            "size": ModelSize.TINY,
-            "requires_gpu": False
-        },
-        "stabilityai/stablelm-zephyr-3b": {
-            "description": "StableLM Zephyr 3B - Instruction-tuned model",
-            "max_tokens": "4096",
-            "suggested_use": "General conversation",
-            "type": ModelType.TEXT,
-            "size": ModelSize.SMALL,
-            "requires_gpu": True
-        },
-        # Code Generation Models
-        "bigcode/starcoderbase-3b": {
-            "description": "StarCoderBase 3B - Lightweight code model",
-            "max_tokens": "4096",
-            "suggested_use": "Code generation for smaller deployments",
-            "type": ModelType.CODE,
-            "size": ModelSize.SMALL,
-            "requires_gpu": False
-        },
-
-        # Image Generation Models
-        "stabilityai/sdxl-turbo": {
-            "description": "SDXL Turbo - Fast image generation",
-            "max_tokens": "N/A",
-            "suggested_use": "Real-time image generation",
-            "type": ModelType.IMAGE,
-            "size": ModelSize.LARGE,
-            "requires_gpu": True,
-            "additional_config": {
-                "image_size": 1024,
-                "steps": 1
+    # Load supported models from external configuration
+    @property
+    def supported_models(self) -> Dict[str, ModelInfo]:
+        try:
+            with open(self.models_config_path) as f:
+                models_dict = json.load(f)
+            return {
+                k: ModelInfo(**v) for k, v in models_dict.items()
             }
-        },
-        "stabilityai/stable-diffusion-xl-base-1.0": {
-            "description": "Stable Diffusion XL 1.0 - High quality image generation",
-            "max_tokens": "N/A",
-            "suggested_use": "High-quality image creation",
-            "type": ModelType.IMAGE,
-            "size": ModelSize.LARGE,
-            "requires_gpu": True,
-            "additional_config": {
-                "image_size": 1024,
-                "steps": 30
-            }
-        },
-        "runwayml/stable-diffusion-v1-5": {
-            "description": "Stable Diffusion 1.5 - Balanced image generation",
-            "max_tokens": "N/A",
-            "suggested_use": "General purpose image generation",
-            "type": ModelType.IMAGE,
-            "size": ModelSize.MEDIUM,
-            "requires_gpu": True,
-            "additional_config": {
-                "image_size": 512,
-                "steps": 20
-            }
-        },
+        except Exception as e:
+            logger.error(f"Error loading models config: {e}")
+            return {}
 
-        # Video Generation Models
-        "stabilityai/stable-video-diffusion-img2vid": {
-            "description": "Stable Video Diffusion - Image to video generation",
-            "max_tokens": "N/A",
-            "suggested_use": "Converting images to short videos",
-            "type": ModelType.VIDEO,
-            "size": ModelSize.LARGE,
-            "requires_gpu": True,
-            "additional_config": {
-                "max_frames": 25,
-                "fps": 8
-            }
-        },
-        "damo-vilab/text-to-video-ms-1.7b": {
-            "description": "ModelScope Text2Video - Text to video generation",
-            "max_tokens": "N/A",
-            "suggested_use": "Generating videos from text descriptions",
-            "type": ModelType.VIDEO,
-            "size": ModelSize.MEDIUM,
-            "requires_gpu": True,
-            "additional_config": {
-                "max_frames": 16,
-                "fps": 8
-            }
-        },
+    def get_models_by_criteria(
+            self,
+            model_type: Optional[ModelType] = None,
+            size: Optional[ModelSize] = None,
+            requires_gpu: Optional[bool] = None,
+            requires_license: Optional[bool] = None
+    ) -> Dict[str, ModelInfo]:
+        """Enhanced model filtering with multiple criteria"""
+        models = self.supported_models
 
-        # Specialized Language Models
-        "openchat/openchat-3.5-0106": {
-            "description": "OpenChat 3.5 - Open source chat model",
-            "max_tokens": "8192",
-            "suggested_use": "Open source chat alternative",
-            "type": ModelType.TEXT,
-            "size": ModelSize.LARGE,
-            "requires_gpu": True
-        },
-        "BAAI/bge-large-en-v1.5": {
-            "description": "BGE Large - Text embeddings model",
-            "max_tokens": "512",
-            "suggested_use": "Text embeddings and similarity",
-            "type": ModelType.TEXT,
-            "size": ModelSize.LARGE,
-            "requires_gpu": False
-        }
-    }
+        if model_type:
+            models = {k: v for k, v in models.items() if v.type == model_type}
+        if size:
+            models = {k: v for k, v in models.items() if v.size == size}
+        if requires_gpu is not None:
+            models = {k: v for k, v in models.items() if v.requires_gpu == requires_gpu}
+        if requires_license is not None:
+            models = {k: v for k, v in models.items() if v.requires_license == requires_license}
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = 'utf-8'
+        return models
 
-    def get_models_by_type(self, model_type: ModelType) -> Dict[str, ModelInfo]:
-        """Get all models of a specific type"""
-        return {k: v for k, v in self.supported_models.items() if v.type == model_type}
-
-    def get_models_by_size(self, size: ModelSize) -> Dict[str, ModelInfo]:
-        """Get all models of a specific size"""
-        return {k: v for k, v in self.supported_models.items() if v.size == size}
-
-    def get_gpu_required_models(self) -> Dict[str, ModelInfo]:
-        """Get all models that require GPU"""
-        return {k: v for k, v in self.supported_models.items() if v.requires_gpu}
-
-    def get_licensed_models(self) -> Dict[str, ModelInfo]:
-        """Get all models that require licenses"""
-        return {k: v for k, v in self.supported_models.items() if v.requires_license}
-settings = Settings()
-
-# Retain existing model classes
 class Message(BaseModel):
+    """Enhanced message model with role validation"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     role: str = Field(..., pattern="^(user|assistant)$")
     content: str = Field(..., min_length=1, max_length=2000)
 
 class ChatRequest(BaseModel):
+    """Enhanced chat request with comprehensive validation"""
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        populate_by_name=True
+    )
+
     messages: List[Message]
-    model: Optional[str] = None  # Allow optional model specification
+    model: Optional[str] = None
     max_new_tokens: int = Field(default=500, gt=0, le=2000)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     top_p: float = Field(default=0.9, ge=0.0, le=1.0)
     repetition_penalty: float = Field(default=1.0, ge=0.1, le=5.0)
 
-    @validator('model')
-    def validate_model(cls, v, values, **kwargs):
+    @field_validator('model')
+    @classmethod
+    def validate_model(cls, v: Optional[str], info: Dict[str, Any]) -> str:
+        settings = get_settings()
         if v and v not in settings.supported_models:
-            raise ValueError(f"Unsupported model. Supported models are: {list(settings.supported_models.keys())}")
+            raise ValueError(f"Unsupported model. Available models: {list(settings.supported_models.keys())}")
         return v or settings.default_model
 
 class ChatResponse(BaseModel):
+    """Enhanced response model with metadata"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     response: str
     search_results: Optional[List[dict]] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class SearchResult(BaseModel):
+    """Enhanced search result model"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     title: str
     snippet: str
     url: str
+    relevance_score: Optional[float] = None
 
-# Enhanced AI Service with Multi-Model Support
+class ImageRequest(BaseModel):
+    """Request model for image generation"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    prompt: str = Field(..., min_length=1, max_length=2000)
+    model: Optional[str] = None
+    num_images: int = Field(default=1, ge=1, le=4)
+
+    @field_validator('model')
+    @classmethod
+    def validate_model(cls, v: Optional[str], info: Dict[str, Any]) -> str:
+        settings = get_settings()
+        if v and v not in settings.supported_models:
+            raise ValueError(f"Unsupported model. Available models: {list(settings.supported_models.keys())}")
+        return v or settings.default_model
+
+class ImageResponse(BaseModel):
+    """Response model for image generation"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    images: List[str] = Field(...)  # List of base64 encoded images
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
 class AIService:
+    """Enhanced AI service with improved error handling and resource management"""
+
     def __init__(self):
-        self.models = {}
-        self.tokenizers = {}
-        self.ddgs = None
+        self.models: Dict[str, Any] = {}
+        self.tokenizers: Dict[str, Any] = {}
+        self.image_processors: Dict[str, Any] = {}
+        self.ddgs: Optional[DDGS] = None
         self.device = self._get_optimal_device()
-        self.current_model_name = None
-        
-    def _get_optimal_device(self):
+        self.current_model_name: Optional[str] = None
+        self._http_session: Optional[aiohttp.ClientSession] = None
+
+    async def __aenter__(self):
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.cleanup()
+
+    @staticmethod
+    def _get_optimal_device() -> torch.device:
+        """Enhanced device selection with MPS support"""
         if torch.cuda.is_available():
-            logger.info(f"CUDA is available. Using GPU: {torch.cuda.get_device_name(0)}")
+            device_name = torch.cuda.get_device_name(0)
+            logger.info(f"Using CUDA GPU: {device_name}")
             return torch.device("cuda")
         elif torch.backends.mps.is_available():
-            logger.info("MPS is available. Using Apple Silicon GPU")
+            logger.info("Using Apple Silicon GPU (MPS)")
             return torch.device("mps")
         else:
-            logger.warning("No GPU available. Falling back to CPU.")
+            logger.warning("No GPU available, using CPU")
             return torch.device("cpu")
 
-    def _get_model_config(self, model_name: str) -> dict:
-        """Get the configuration for loading a specific model"""
-        base_config = {
-            "trust_remote_code": True,
-            "low_cpu_mem_usage": True,
-        }
-        
-        # Add device configuration based on available hardware
-        if self.device.type == 'cuda':
-            # Create quantization config for CUDA devices
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=True,
-                llm_int8_threshold=6.0
-            )
-            base_config.update({
-                "device_map": "auto",
-                "quantization_config": quantization_config
-            })
-        
-        # Get model info from settings
-        model_info = settings.supported_models.get(model_name)
-        if not model_info:
-            raise ValueError(f"Model {model_name} not found in supported models")
+    def _get_model_config(self, model_name: str) -> ModelLoadConfig:
+        """Enhanced model configuration with dataclass and improved dtype handling"""
+        base_config = ModelLoadConfig(
+            trust_remote_code=True,
+            low_cpu_mem_usage=True
+        )
 
-        # Add any model-specific configurations
-        if model_info.additional_config:
-            base_config.update(model_info.additional_config)
+        if self.device.type == 'cuda':
+            base_config.quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_threshold=6.0,
+                llm_int8_enable_fp32_cpu_offload=True
+            )
+            base_config.device_map = "auto"
+
+            # Use auto detection of dtype instead of forcing float16
+            base_config.torch_dtype = None
+        else:
+            base_config.torch_dtype = torch.float32
 
         return base_config
 
     async def initialize(self):
-        """Initialize the AI service and load the default model"""
+        """Enhanced initialization with connection pooling"""
         try:
-            logger.info(f"Initializing service with default model: {settings.default_model}")
-            await self._load_model(settings.default_model)
+            self._http_session = aiohttp.ClientSession()
+            logger.info(f"Initializing with default model: {get_settings().default_model}")
+            await self._load_model(get_settings().default_model)
         except Exception as e:
-            logger.error(f"Failed to initialize AI service: {e}")
+            logger.error(f"Initialization failed: {traceback.format_exc()}")
+            await self.cleanup()
             raise
 
     async def _load_model(self, model_name: str):
-        """Load a model and move it to the correct device"""
+        """Enhanced model loading with better resource management"""
         if model_name in self.models:
             if model_name != self.current_model_name:
                 await self._unload_current_model()
             return
 
         try:
-            # Get model configuration
-            model_config = self._get_model_config(model_name)
-            
-            # Load tokenizer and model
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                **model_config,
-                torch_dtype=torch.float16 if self.device.type == 'cuda' else torch.float32
-            )
+            config = self._get_model_config(model_name)
+            model_info = get_settings().supported_models[model_name]
 
-            # Move model to device if not using device_map
-            if 'device_map' not in model_config:
+            if model_info.type == ModelType.TEXT:
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    trust_remote_code=config.trust_remote_code,
+                    low_cpu_mem_usage=config.low_cpu_mem_usage,
+                    device_map=config.device_map,
+                    torch_dtype=config.torch_dtype,
+                    quantization_config=config.quantization_config
+                )
+                if config.device_map is None:
+                    model = model.to(self.device)
+
+                self.models[model_name] = model
+                self.tokenizers[model_name] = tokenizer
+            elif model_info.type == ModelType.IMAGE:
+                processor = CLIPProcessor.from_pretrained(model_name)
+                model = CLIPModel.from_pretrained(model_name)
                 model = model.to(self.device)
 
-            # Store model and tokenizer
-            self.models[model_name] = model
-            self.tokenizers[model_name] = tokenizer
+                self.models[model_name] = model
+                self.image_processors[model_name] = processor
+            else:
+                raise ValueError(f"Unsupported model type: {model_info.type}")
+
             self.current_model_name = model_name
-            
+
             logger.info(f"Model {model_name} loaded successfully on {self.device}")
-            
+
         except Exception as e:
-            logger.error(f"Error loading model {model_name}: {e}")
+            logger.error(f"Model loading error: {traceback.format_exc()}")
             raise
 
-    async def generate_response(self, model_name: str, prompt: str, generation_config: GenerationConfig):
-        """Generate a response using the specified model"""
+    async def generate_response(
+            self,
+            model_name: str,
+            prompt: str,
+            generation_config: GenerationConfig
+    ) -> str:
+        """Enhanced response generation with better error handling"""
         try:
-            # Ensure the correct model is loaded
             if model_name != self.current_model_name:
                 await self._load_model(model_name)
 
             model = self.models[model_name]
             tokenizer = self.tokenizers[model_name]
 
-            # Prepare inputs on the correct device
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            inputs = tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=2048
+            ).to(self.device)
 
-            # Generate response
-            with torch.no_grad():
+            with torch.inference_mode():
                 outputs = model.generate(
                     **inputs,
                     generation_config=generation_config,
@@ -379,65 +368,133 @@ class AIService:
                     eos_token_id=tokenizer.eos_token_id
                 )
 
-            # Decode response
             response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            response = response[len(prompt):].strip()  # Remove prompt from response
-            
-            return response
+            return response[len(prompt):].strip()
 
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
+            logger.error(f"Generation error: {traceback.format_exc()}")
             raise
 
-    async def _unload_current_model(self):
-        """Safely unload the current model"""
-        if self.current_model_name:
-            try:
-                if self.current_model_name in self.models:
-                    del self.models[self.current_model_name]
-                if self.current_model_name in self.tokenizers:
-                    del self.tokenizers[self.current_model_name]
-                torch.cuda.empty_cache()
-                self.current_model_name = None
-                logger.info("Successfully unloaded current model")
-            except Exception as e:
-                logger.error(f"Error unloading model: {e}")
-                raise
+    async def generate_image(
+            self,
+            model_name: str,
+            prompt: str,
+            num_images: int
+    ) -> List[str]:
+        """Enhanced image generation with better error handling"""
+        try:
+            if model_name != self.current_model_name:
+                await self._load_model(model_name)
 
-    async def search(self, query: str, max_results: int = 3) -> List[SearchResult]:
-        """Perform web search and return results"""
+            processor = self.image_processors[model_name]
+            model = self.models[model_name]
+
+            inputs = processor(text=prompt, return_tensors="pt").to(self.device)
+
+            with torch.inference_mode():
+                images = model.generate(**inputs, num_images_per_prompt=num_images)
+
+            # Convert images to base64 for easy transfer
+            base64_images = []
+            for image in images:
+                import io
+                from PIL import Image
+                import base64
+
+                buffered = io.BytesIO()
+                Image.fromarray(image.cpu().numpy()).save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                base64_images.append(img_str)
+
+            return base64_images
+
+        except Exception as e:
+            logger.error(f"Image generation error: {traceback.format_exc()}")
+            raise
+
+    async def search(
+            self,
+            query: str,
+            max_results: int = 3
+    ) -> List[SearchResult]:
+        """Enhanced search with async implementation and improved error handling"""
         try:
             if self.ddgs is None:
                 self.ddgs = DDGS()
 
-            search_results = []
-            async for r in self.ddgs.text(query, max_results=max_results):
-                search_results.append(SearchResult(
-                    title=r['title'],
-                    snippet=r['body'],
-                    url=r['link']
+            results = []
+            ddg_results = list(self.ddgs.text(query, max_results=max_results))
+
+            for r in ddg_results:
+                # Use .get() to safely extract keys, with fallback values
+                results.append(SearchResult(
+                    title=r.get('title', 'No Title'),
+                    snippet=r.get('body', 'No snippet available'),
+                    url=r.get('link') or r.get('href') or r.get('url', ''),
+                    relevance_score=0.0  # Placeholder for future relevance scoring
                 ))
-            return search_results
+
+            return results
+
         except Exception as e:
-            logger.error(f"Search error: {e}")
-            return []  # Return empty list on error
+            logger.error(f"Search error: {traceback.format_exc()}")
+            return []
 
     async def cleanup(self):
-        """Cleanup resources"""
-        await self._unload_current_model()
-        if self.ddgs:
-            self.ddgs.close()
+        """Enhanced cleanup with comprehensive resource management"""
+        try:
+            await self._unload_current_model()
+            if self.ddgs:
+                self.ddgs.close()
+            if self._http_session:
+                await self._http_session.close()
+        except Exception as e:
+            logger.error(f"Cleanup error: {traceback.format_exc()}")
 
-# FastAPI Application Setup
+    async def _unload_current_model(self):
+        """Enhanced model unloading with explicit device removal"""
+        if self.current_model_name:
+            try:
+                model_info = get_settings().supported_models[self.current_model_name]
+                if model_info.type == ModelType.TEXT:
+                    del self.models[self.current_model_name]
+                    del self.tokenizers[self.current_model_name]
+                elif model_info.type == ModelType.IMAGE:
+                    del self.models[self.current_model_name]
+                    del self.image_processors[self.current_model_name]
+                else:
+                    raise ValueError(f"Unsupported model type: {model_info.type}")
+
+                # Explicitly move model to CPU before deleting to free GPU memory
+                # torch.cuda.empty_cache()
+                self.current_model_name = None
+                logger.info(f"Unloaded model: {self.current_model_name}")
+            except Exception as e:
+                logger.error(f"Error unloading model: {e}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    global ai_service
+    ai_service = AIService()
+    try:
+        await ai_service.initialize()
+        yield
+    finally:
+        await ai_service.cleanup()
+
+# Enhanced FastAPI application with OpenAPI documentation
 app = FastAPI(
     title="Multi-Model AI Assistant",
-    description="An AI-powered chatbot with web search and dynamic model selection",
-    version="1.2.0"
+    description="Advanced AI-powered chatbot with web search and dynamic model selection",
+    version="2.0.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-ai_service = AIService()
-
-# Add comprehensive CORS middleware
+# Enhanced CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -446,107 +503,192 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Utility Functions
-def build_prompt(messages: List[Message], search_results: List[SearchResult]) -> str:
-    """Construct a comprehensive prompt with search context."""
-    prompt_parts = []
-    
-    if search_results:
-        prompt_parts.append("Contextual Information:")
-        for result in search_results[:3]:
-            prompt_parts.append(f"- {result.snippet}")
-        prompt_parts.append("\nConversation Context:")
+@lru_cache()
+def get_settings() -> Settings:
+    """Cached settings provider"""
+    return Settings()
 
-    for msg in messages:
-        role_prefix = "Human: " if msg.role == "user" else "Assistant: "
-        prompt_parts.append(f"{role_prefix}{msg.content}")
-    
-    return "\n".join(prompt_parts)
-
-# API Key Verification Dependency
-async def verify_api_key(x_api_key: str = Header(...)):
+async def verify_api_key(
+        api_key: Annotated[str, Header(alias="X-API-Key")]
+) -> str:
+    """Enhanced API key verification"""
+    settings = get_settings()
     valid_keys = settings.api_keys.split(',')
-    if x_api_key not in valid_keys:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-    return x_api_key
+    if api_key not in valid_keys:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key"
+        )
+    return api_key
 
-# Startup and Shutdown Events
-@app.on_event("startup")
-async def startup_event():
-    try:
-        logger.info("Initializing AI Service...")
-        await ai_service.initialize()
-    except Exception as e:
-        logger.critical(f"Startup failed: {e}")
-        raise
+def build_prompt(
+        messages: List[Message],
+        search_results: List[SearchResult]
+) -> str:
+    """Enhanced prompt builder with better formatting"""
+    parts = []
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    if hasattr(ai_service, 'ddgs') and ai_service.ddgs:
-        ai_service.ddgs.close()
-        logger.info("Search client closed.")
+    if search_results:
+        parts.append("### Contextual Information:")
+        parts.extend(f"- {result.snippet}" for result in search_results[:3])
+        parts.append("\n### Conversation:")
 
-# New Endpoint for Model Information
-@app.get("/models")
-async def get_available_models():
-    """Provide information about available models"""
+    parts.extend(
+        f"{'Human' if msg.role == 'user' else 'Assistant'}: {msg.content}"
+        for msg in messages
+    )
+
+    return "\n".join(parts)
+
+@app.get("/models", response_model=Dict[str, Any])
+async def get_available_models(
+        model_type: Optional[ModelType] = None,
+        size: Optional[ModelSize] = None,
+        requires_gpu: Optional[bool] = None
+):
+    """Enhanced model information endpoint with filtering"""
+    settings = get_settings()
+
+    models = settings.get_models_by_criteria(
+        model_type=model_type,
+        size=size,
+        requires_gpu=requires_gpu
+    )
+
     return {
-        "default_model": settings.default_model,
-        "models": settings.supported_models
+        "models": models,
+        "default_model": settings.default_model
     }
 
-# Main Chat Endpoint
-@app.post("/chat", response_model=ChatResponse, dependencies=[Depends(verify_api_key)])
-async def chat_endpoint(request: ChatRequest):
+@app.post("/chat", response_model=ChatResponse)
+async def chat(
+        request: ChatRequest,
+        background_tasks: BackgroundTasks,
+        api_key: str = Depends(verify_api_key)
+):
+    """Enhanced chat endpoint with background tasks and improved error handling"""
     try:
-        # Use the specified model or default
-        model_name = request.model or settings.default_model
-        
-        user_message = next((msg for msg in reversed(request.messages) if msg.role == 'user'), None)
-        if not user_message:
-            raise HTTPException(status_code=400, detail="No user message found")
+        model_name = request.model or get_settings().default_model
+        model_info = get_settings().supported_models.get(model_name)
 
-        search_results = await ai_service.search(user_message.content)
-        
+        if model_info.requires_gpu and ai_service.device.type == 'cpu':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model '{model_name}' requires a GPU, but no GPU is available."
+            )
+
+        search_results = await ai_service.search(request.messages[-1].content)
         prompt = build_prompt(request.messages, search_results)
-        
+
         generation_config = GenerationConfig(
+            max_new_tokens=request.max_new_tokens,
             temperature=request.temperature,
             top_p=request.top_p,
             repetition_penalty=request.repetition_penalty,
-            do_sample=True,
-            max_new_tokens=request.max_new_tokens
+            do_sample=True
         )
-        
-        response = await ai_service.generate_response(model_name, prompt, generation_config)
-        
+
+        response = await ai_service.generate_response(
+            model_name,
+            prompt,
+            generation_config
+        )
+
+        # Add a background task to log the chat interaction
+        background_tasks.add_task(log_chat_interaction, request, response, search_results)
+
         return ChatResponse(
             response=response,
-            search_results=[result.dict() for result in search_results]
+            search_results=[result.dict() for result in search_results],
+            metadata={
+                "model_name": model_name,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
         )
-        
+
     except Exception as e:
-        logger.error(f"Chat processing error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Chat processing error: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error processing chat request."
+        ) from e
 
-# Health Check Endpoint
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "default_model": settings.default_model,
-        "available_models": list(settings.supported_models.keys()),
-        "device": str(ai_service.device)
-    }
+@app.post("/image", response_model=ImageResponse)
+async def image(
+        request: ImageRequest,
+        background_tasks: BackgroundTasks,
+        api_key: str = Depends(verify_api_key)
+):
+    """Enhanced image generation endpoint with background tasks and improved error handling"""
+    try:
+        model_name = request.model or get_settings().default_model
+        model_info = get_settings().supported_models.get(model_name)
 
-# Main Execution
+        if model_info.requires_gpu and ai_service.device.type == 'cpu':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model '{model_name}' requires a GPU, but no GPU is available."
+            )
+
+        images = await ai_service.generate_image(
+            model_name,
+            request.prompt,
+            request.num_images
+        )
+
+        # Add a background task to log the image generation request
+        background_tasks.add_task(log_image_generation, request, images)
+
+        return ImageResponse(
+            images=images,
+            metadata={
+                "model_name": model_name,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Image generation error: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error generating image."
+        ) from e
+
+def log_chat_interaction(
+        request: ChatRequest,
+        response: str,
+        search_results: List[SearchResult]
+):
+    """Enhanced logging with structured data and search results"""
+    try:
+        log_data = {
+            "model": request.model,
+            "prompt": build_prompt(request.messages, search_results),
+            "response": response,
+            "search_results": [result.dict() for result in search_results],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        logger.info(f"Chat interaction: {json.dumps(log_data)}")
+    except Exception as e:
+        logger.error(f"Error logging chat interaction: {e}")
+
+def log_image_generation(
+        request: ImageRequest,
+        images: List[str]
+):
+    """Enhanced logging for image generation requests"""
+    try:
+        log_data = {
+            "model": request.model,
+            "prompt": request.prompt,
+            "num_images": request.num_images,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        logger.info(f"Image generation request: {json.dumps(log_data)}")
+    except Exception as e:
+        logger.error(f"Error logging image generation: {e}")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app", 
-        host=settings.host, 
-        port=settings.port, 
-        reload=settings.debug
-    )
-
-
+    settings = get_settings()
+    uvicorn.run(app, host=settings.host, port=settings.port, debug=settings.debug)

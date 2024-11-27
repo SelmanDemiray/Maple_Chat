@@ -1,4 +1,3 @@
-# Dockerfile
 FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 
 # Set the working directory
@@ -20,11 +19,13 @@ RUN useradd -m -s /bin/bash myuser
 ENV HOME=/home/myuser \
     PYTHONUNBUFFERED=1 \
     TRANSFORMERS_CACHE=/home/myuser/.cache/huggingface \
-    HF_HOME=/home/myuser/.cache/huggingface
+    HF_HOME=/home/myuser/.cache/huggingface \
+    LOG_DIR=/app/logs
 
-# Create cache directories and set permissions
-RUN mkdir -p ${HF_HOME} && \
-    chown -R myuser:myuser ${HOME}
+# Create necessary directories and set permissions
+RUN mkdir -p ${HF_HOME} ${LOG_DIR} && \
+    chown -R myuser:myuser ${HOME} ${LOG_DIR} && \
+    chmod 755 ${LOG_DIR}
 
 # Ensure python3 is the default python
 RUN ln -s /usr/bin/python3 /usr/bin/python

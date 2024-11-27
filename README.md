@@ -1,3 +1,4 @@
+![Logo](./logo.png)
 # Open Source AI Chat 🤖
 
 A powerful, extensible, and easy-to-deploy platform for AI-driven conversations and multimodal interactions. This platform supports various AI models for text, image, audio, and code generation, designed with customization and scalability in mind.
@@ -25,6 +26,9 @@ A powerful, extensible, and easy-to-deploy platform for AI-driven conversations 
 - **Dynamic Model Management**: Runtime model switching without container rebuilds
 - **API Security**: Robust authentication with API keys and customizable rate limits
 - **Health Monitoring**: Automatic checks for frontend and backend services
+
+![Screenshot](/screenshot.png)
+
 
 ## 🚀 Getting Started
 

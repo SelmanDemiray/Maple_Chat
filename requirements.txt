@@ -22,3 +22,9 @@ huggingface-hub
 
 diffusers
 accelerate
+
+
+
+aiohttp
+
+
