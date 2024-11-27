@@ -692,15 +692,37 @@ def log_image_generation(
 
 @app.get("/hardware")
 async def get_hardware_info():
-    """Endpoint to return hardware information."""
-    if torch.cuda.is_available():
-        device_name = torch.cuda.get_device_name(0)
-        hardware = device_name.lower()  # e.g., "nvidia geforce rtx 3080"
-    elif torch.backends.mps.is_available():
-        hardware = "apple silicon gpu"
-    else:
-        hardware = "cpu"
-    return {"hardware": hardware}
+    """
+    Endpoint to return detailed hardware information and log it.
+    """
+    hardware_info = {}
+
+    try:
+        if torch.cuda.is_available():
+            device_name = torch.cuda.get_device_name(0)
+            hardware_info["gpu"] = device_name.lower()  # e.g., "nvidia geforce rtx 3080"
+            hardware_info["gpu_memory"] = torch.cuda.get_device_properties(0).total_memory
+        elif torch.backends.mps.is_available():
+            hardware_info["gpu"] = "apple silicon gpu"
+        else:
+            hardware_info["gpu"] = "cpu"
+
+        # Add CPU information
+        hardware_info["cpu_cores"] = os.cpu_count()
+
+        # Add RAM information
+        import psutil
+        mem = psutil.virtual_memory()
+        hardware_info["ram_total"] = mem.total
+        hardware_info["ram_available"] = mem.available
+
+        # Log hardware information
+        logger.info(f"Hardware information: {hardware_info}")
+
+    except Exception as e:
+        logger.error(f"Error retrieving hardware information: {e}")
+
+    return hardware_info
 
 
 # Health Check Endpoint

@@ -7,7 +7,7 @@
     <title>AI Chat Interface</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/tiktoken@1.0.1/dist/tiktoken.browser.mjs"></script>
     <style>
         :root {
             --bg-color: #f7f7f7;
@@ -26,6 +26,15 @@
             --timestamp-color: #6c757d;
             --error-bg: #f8d7da;
             --error-text: #721c24;
+            --model-small-bg: #CCEECC;
+            /* Light green */
+            --model-medium-bg: #FFFFCC;
+            /* Light yellow */
+            --model-large-bg: #FFCCCC;
+            /* Light red */
+            --model-small-color: #000;
+            --model-medium-color: #000;
+            --model-large-color: #000;
         }
 
         body.dark-mode {
@@ -45,6 +54,15 @@
             --timestamp-color: #aaa;
             --error-bg: #5d1b1b;
             --error-text: #ff6b6b;
+            --model-small-bg: #006400;
+            /* Darker green */
+            --model-medium-bg: #DAA520;
+            /* Darker yellow/gold */
+            --model-large-bg: #8B0000;
+            /* Darker red */
+            --model-small-color: #fff;
+            --model-medium-color: #000;
+            --model-large-color: #fff;
         }
 
         * {
@@ -175,6 +193,22 @@
             width: 100%;
         }
 
+
+        #model-dropdown option[data-size="small"] {
+            background-color: var(--model-small-bg);
+            color: var(--model-small-color);
+        }
+
+        #model-dropdown option[data-size="medium"] {
+            background-color: var(--model-medium-bg);
+            color: var(--model-medium-color);
+        }
+
+        #model-dropdown option[data-size="large"] {
+            background-color: var(--model-large-bg);
+            color: var(--model-large-color);
+        }
+
         #chat-container {
             flex-grow: 1;
             overflow-y: auto;
@@ -279,112 +313,6 @@
         }
 
         .loading-indicator {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            color: var(--text-color);
-            font-style: italic;
-            z-index: 1;
-        }
-
-        .loading-indicator i {
-            font-size: 1.5em;
-        }
-
-        .search-results {
-            background-color: var(--card-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 8px;
-            padding: 10px;
-            margin-top: 10px;
-        }
-
-        @keyframes fadeIn {
-            to {
-                opacity: 1;
-            }
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(20px);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        .message {
-            animation: slideIn 0.3s ease-out;
-        }
-
-        #chat-header {
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        .message {
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        #message-input {
-            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .btn {
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-        }
-
-        .lds-ring {
-            display: inline-block;
-            position: relative;
-            width: 80px;
-            height: 80px;
-        }
-
-        .lds-ring div {
-            box-sizing: border-box;
-            display: block;
-            position: absolute;
-            width: 64px;
-            height: 64px;
-            margin: 8px;
-            border: 8px solid var(--button-bg);
-            border-radius: 50%;
-            animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-            border-color: var(--button-bg) transparent transparent transparent;
-        }
-
-        .lds-ring div:nth-child(1) {
-            animation-delay: -0.45s;
-        }
-
-        .lds-ring div:nth-child(2) {
-            animation-delay: -0.3s;
-        }
-
-        .lds-ring div:nth-child(3) {
-            animation-delay: -0.15s;
-        }
-
-        @keyframes lds-ring {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        #loading-indicator {
             display: none;
             position: absolute;
             top: 50%;
@@ -394,6 +322,10 @@
             padding: 20px;
             border-radius: 10px;
             z-index: 2;
+            flex-direction: column;
+            /* Align items vertically in the loading indicator */
+            align-items: center;
+            /* Center items horizontally */
         }
 
         .message img {
@@ -467,6 +399,67 @@
         #model-info:hover .model-info-box {
             display: block;
         }
+
+        .progress {
+            width: 200px;
+            height: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: var(--button-bg);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        #chat-history {
+            margin-top: 20px;
+            /* Add some space above chat history */
+            overflow-y: auto;
+            /* Make chat history scrollable */
+            max-height: 200px;
+            /* Limit the height of the chat history */
+        }
+
+        #history-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        #history-list li {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--input-border);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #history-list li:hover {
+            background-color: var(--hover-bg);
+        }
+
+        #history-list li.active {
+            background-color: var(--button-bg);
+            color: white;
+        }
+
+        #new-chat-button {
+            margin-top: 10px;
+            /* Add space above the button */
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #new-chat-button:hover {
+            background-color: var(--button-hover-bg);
+        }
     </style>
 </head>
 
@@ -485,10 +478,13 @@
                     <p>Size: <span id="model-size"></span></p>
                 </div>
             </div>
+
             <div id="chat-history">
                 <h3>Chat History</h3>
                 <ul id="history-list"></ul>
+                <button id="new-chat-button">New Chat</button>
             </div>
+
             <button id="theme-toggle">
                 <i class="fas fa-moon"></i>
             </button>
@@ -512,6 +508,11 @@
                     <div></div>
                     <div></div>
                 </div>
+                <div class="progress">
+                    <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0"
+                        aria-valuemax="100"></div>
+                </div>
+                <span id="loading-message">Generating response...</span>
             </div>
 
             <div id="input-container">
@@ -544,7 +545,8 @@
             models: [],
             currentModel: null,
             chatHistory: [],
-            sidebarCollapsed: false
+            sidebarCollapsed: false,
+            currentChatIndex: 0 // Add this
         };
 
         // DOM Element References
@@ -558,7 +560,9 @@
             clearButton: document.getElementById('clear-button'),
             historyList: document.getElementById('history-list'),
             sidebar: document.getElementById('sidebar'),
-            sidebarToggle: document.getElementById('sidebar-toggle')
+            sidebarToggle: document.getElementById('sidebar-toggle'),
+            progressBar: document.querySelector('.progress-bar'),
+            newChatButton: document.getElementById('new-chat-button') // Add this
         };
 
         // Theme Management
@@ -573,9 +577,7 @@
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const isDarkMode = document.body.classList.contains('dark-mode');
-            DOM.themeToggle.innerHTML = isDarkMode
-                ? '<i class="fas fa-sun"></i>'
-                : '<i class="fas fa-moon"></i>';
+            DOM.themeToggle.innerHTML = isDarkMode ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
             localStorage.setItem('theme', isDarkMode ? 'dark-mode' : 'light-mode');
         }
 
@@ -610,13 +612,17 @@
 
         // Local Storage Management
         function updateLocalStorage() {
-            localStorage.setItem('chatMessages', JSON.stringify(state.messages));
+            const chatKey = `chatMessages_${state.currentChatIndex}`; // Unique key for each chat
+            localStorage.setItem(chatKey, JSON.stringify(state.messages));
 
             const currentChat = {
                 timestamp: new Date().toISOString(),
-                lastMessage: state.messages[state.messages.length - 1]?.text || 'Empty Chat'
+                lastMessage: state.messages[state.messages.length - 1]?.text || 'Empty Chat',
+                chatIndex: state.currentChatIndex
             };
 
+            // Ensure chat history doesn't contain duplicates for the same chat index
+            state.chatHistory = state.chatHistory.filter(chat => chat.chatIndex !== state.currentChatIndex);
             state.chatHistory.unshift(currentChat);
 
             if (state.chatHistory.length > CONFIG.MAX_HISTORY_ITEMS) {
@@ -629,23 +635,41 @@
 
         function updateChatHistoryUI() {
             DOM.historyList.innerHTML = '';
-            state.chatHistory.forEach((chat, index) => {
+            state.chatHistory.forEach(chat => {
                 const listItem = document.createElement('li');
-                listItem.textContent = `Chat ${index + 1} - ${new Date(chat.timestamp).toLocaleString()}`;
-                listItem.addEventListener('click', () => loadHistoricalChat(index));
+                listItem.textContent = `Chat ${chat.chatIndex + 1} - ${new Date(chat.timestamp).toLocaleString()}`;
+                listItem.addEventListener('click', () => loadHistoricalChat(chat.chatIndex));
+
+                // Highlight the active chat
+                if (chat.chatIndex === state.currentChatIndex) {
+                    listItem.classList.add('active');
+                }
+
                 DOM.historyList.appendChild(listItem);
             });
         }
 
         function loadHistoricalChat(index) {
-            const historicalMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+            state.currentChatIndex = index;
+            const chatKey = `chatMessages_${index}`;
+            const historicalMessages = JSON.parse(localStorage.getItem(chatKey)) || [];
             state.messages = historicalMessages;
 
-            DOM.chatContainer.innerHTML = '';
+            DOM.chatContainer.innerHTML = ''; // Clear the chat container before loading messages
 
             state.messages.forEach(msg => {
                 addMessage(msg.text, msg.sender);
             });
+
+            updateChatHistoryUI();
+        }
+
+        // New Chat Functionality
+        function createNewChat() {
+            state.currentChatIndex++;
+            state.messages = [];
+            DOM.chatContainer.innerHTML = '';
+            updateLocalStorage();
         }
 
         // API Interaction
@@ -735,6 +759,7 @@
         // Loading Indicator
         function showLoadingIndicator() {
             DOM.loadingIndicator.style.display = 'flex';
+            DOM.progressBar.style.width = '0%'; // Reset the progress bar
         }
 
         function hideLoadingIndicator() {
@@ -759,7 +784,7 @@
                 state.currentModel = data.default_model;
 
                 DOM.modelDropdown.innerHTML = state.models.map(model =>
-                    `<option value="${model.id}" data-size="${model.size}">${model.id}</option>`
+                    `<option value="<span class="math-inline">\{model\.id\}" data\-type\="</span>{model.type}" data-size="<span class="math-inline">\{model\.size\}"\></span>{model.id}</option>`
                 ).join('');
 
                 // Add event listener to update hover box
@@ -788,57 +813,76 @@
             }
         }
 
-        // Estimation Handling
-        function estimateGenerationTime(model, hardware) {
-            const tokens = DOM.inputField.value.trim().split(/\s+/).length;
-            let baseTime = tokens * 0.1; // Increased base time per token
-
-            // Adjust estimation based on hardware (updated values)
-            switch (hardware) {
-                case "cpu":
-                    baseTime *= 5; // CPU is significantly slower
-                    break;
-                case "nvidia geforce rtx 3080":
-                    baseTime *= 1; // RTX 3080 is the baseline
-                    break;
-                // Add more cases for other hardware as needed
-                default:
-                    baseTime *= 2; // Default to a moderate speed
-                    break;
+        // Estimation Handling (Upgraded)
+        async function getNetworkLatency() {
+            const start = Date.now();
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/ping`); // A simple ping endpoint
+                if (response.ok) {
+                    const end = Date.now();
+                    return end - start; // Latency in milliseconds
+                }
+            } catch (error) {
+                console.error("Error pinging server:", error);
             }
-
-            // More nuanced sizeFactor values
-            const sizeFactor = { small: 1, medium: 1.5, large: 2 }[model.size] || 1;
-            let estimatedTime = baseTime * sizeFactor;
-
-            // Ensure minimum estimation time of at least 1 second
-            estimatedTime = Math.max(estimatedTime, 1);
-
-            return estimatedTime < 2
-                ? "Approximately 1 second"
-                : `Approximately ${Math.round(estimatedTime)} seconds`;
+            return 500; // Default latency if ping fails (0.5 seconds)
         }
 
+        function estimateGenerationTime(model, hardware, latency = 0) {
+            const enc = tiktoken.encoding_for_model(model.id); // Get the encoding for the model
+            const tokens = enc.encode(DOM.inputField.value.trim()).length; // Count tokens accurately
+            let baseTime = tokens * 0.2; // Base time per token
+
+            const gpuFactor = {
+                "cpu": 6,
+                "nvidia geforce rtx 3080": 1,
+                "apple silicon gpu": 0.7,
+                "nvidia geforce rtx 3090": 0.9,
+                "nvidia geforce rtx 4090": 0.5,
+                "amd radeon rx 7900 xtx": 0.8,
+                // ... add more GPUs as needed
+            }[hardware.gpu.toLowerCase()] || 2; // Default for unknown GPU
+
+            const cpuFactor = 1 + (hardware.cpu_cores / 16);
+
+            const modelFactor = { // Model Size Adjustment Factor
+                "gpt-3.5-turbo": 1.0,
+                "gpt-4": 1.8,
+                "some-other-model": 0.8,
+                // ... add more models with specific factors as needed
+            }[model.id] || 1; // Default if model not found
+
+            let estimatedTime = baseTime * gpuFactor * cpuFactor * modelFactor;
+            estimatedTime += latency / 1000; // Add latency (in seconds) to the estimate
+
+            // Clamps (adjust as needed)
+            estimatedTime = Math.max(estimatedTime, 1); // Minimum 1 second
+            estimatedTime = Math.min(estimatedTime, 60); // Maximum 60 seconds
+
+            return estimatedTime < 2 ? "Approximately 1 second" : `Approximately ${Math.round(estimatedTime)} seconds`;
+        }
+
+        let hardwareInfoCache = null; // Cache for hardware info
         async function updateEstimationInfo() {
             const currentModel = state.models.find(model => model.id === state.currentModel);
             if (currentModel) {
                 try {
-                    // Fetch hardware info from the backend
-                    const response = await fetch(`${CONFIG.API_BASE_URL}/hardware`);
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch hardware info');
+                    if (!hardwareInfoCache) { // Fetch if not cached
+                        const response = await fetch(`${CONFIG.API_BASE_URL}/hardware`);
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch hardware info');
+                        }
+                        hardwareInfoCache = await response.json();
                     }
-                    const data = await response.json();
-                    const hardware = data.hardware;
 
-                    const estimation = estimateGenerationTime(currentModel, hardware);
+                    const latency = await getNetworkLatency();
+                    const estimation = estimateGenerationTime(currentModel, hardwareInfoCache, latency);
                     document.getElementById('estimation-info').innerHTML = `Estimated time: ${estimation}`;
 
                 } catch (error) {
                     console.error('Error fetching hardware or estimating time:', error);
-                    // Fallback to a simple estimation if hardware info is unavailable
-                    const estimation = estimateGenerationTime(currentModel, "cpu");
-                    document.getElementById('estimation-info').innerHTML = `Estimated time: ${estimation}`;
+                    const estimation = estimateGenerationTime(currentModel, { gpu: "cpu", cpu_cores: 4 }, 500);
+                    document.getElementById('estimation-info').innerHTML = `Estimated time: ${estimation} (fallback)`;
                 }
             }
         }
@@ -880,27 +924,29 @@
 
         DOM.themeToggle.addEventListener('click', toggleTheme);
 
+        DOM.newChatButton.addEventListener('click', createNewChat);
+
         // Sidebar toggle
         DOM.sidebarToggle.addEventListener('click', () => {
             state.sidebarCollapsed = !state.sidebarCollapsed;
             DOM.sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
             DOM.sidebar.style.width = state.sidebarCollapsed ? '50px' : '250px';
-            DOM.sidebarToggle.innerHTML = state.sidebarCollapsed
-                ? '<i class="fas fa-angle-right"></i>'
-                : '<i class="fas fa-angle-left"></i>';
+            DOM.sidebarToggle.innerHTML = state.sidebarCollapsed ? '<i class="fas fa-angle-right"></i>' : '<i class="fas fa-angle-left"></i>';
         });
 
         // Initialization
         function initialize() {
             initializeTheme();
             fetchModels();
-            updateLocalStorage();
 
-            const savedMessages = localStorage.getItem('chatMessages');
-            if (savedMessages) {
-                state.messages = JSON.parse(savedMessages);
-                state.messages.forEach(msg => addMessage(msg.text, msg.sender));
+            // Load chat history from localStorage
+            const savedChatHistory = localStorage.getItem('chatHistory');
+            if (savedChatHistory) {
+                state.chatHistory = JSON.parse(savedChatHistory);
             }
+
+            state.currentChatIndex = 0; // Initialize the chat index
+            loadHistoricalChat(state.currentChatIndex); // Load the initial chat
         }
 
         initialize();
