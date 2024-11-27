@@ -3,8 +3,9 @@
 
 A powerful, extensible, and easy-to-deploy platform for AI-driven conversations and multimodal interactions. This platform supports various AI models for text, image, audio, and code generation, designed with customization and scalability in mind.
 
-[![Disclaimer](https://img.shields.io/badge/Disclaimer-Read%20Now-red)](https://github.com/yourusername/open-source-ai-chat#⚠️-disclaimer) 
-
+<a href="#disclaimer">
+  <button>Disclaimer</button>
+</a> 
 
 ## ✨ Key Features
 
