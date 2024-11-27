@@ -46,25 +46,7 @@ A powerful, extensible, and easy-to-deploy platform for AI-driven conversations 
    cd open-source-ai-chat
    ```
 
-2. **Configure Environment**
-   Create a `.env` file in the project root:
-   ```env
-   # API Configuration
-   API_KEY=your_api_key_here
-   SECRET_KEY=your_secret_key_here
-   MODEL_NAME=lmsys/vicuna-7b-v1.5
-   MAX_TOKENS=1000
-   USE_GPU=true
-
-   # Server Configuration
-   HOST=0.0.0.0
-   PORT=8007
-
-   # Web Search Configuration
-   USE_WEB_SEARCH=true
-   ```
-
-3. **Launch the Application**
+2. **Launch the Application**
    ```bash
    docker-compose up --build
    ```
