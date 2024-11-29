@@ -110,7 +110,8 @@ class Settings(BaseSettings):
     model_config = ConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
-        extra='ignore'
+        extra='ignore',
+        protected_namespaces = ()  # This line updated to fix the warning
     )
     api_key: str = Field(..., env='API_KEY')
     api_keys: str = Field(..., env='API_KEYS')
@@ -429,7 +430,7 @@ class AIService:
                     title=r.get('title', 'No Title'),
                     snippet=r.get('body', 'No snippet available'),
                     url=r.get('link') or r.get('href') or r.get('url', ''),
-                    relevance_score=0.0  # Placeholder for future relevance scoring
+                    relevance_score=0.0  # future relevance scoring
                 ))
 
             return results
@@ -583,7 +584,7 @@ async def chat(
             temperature=request.temperature,
             top_p=request.top_p,
             repetition_penalty=request.repetition_penalty,
-            do_sample=True
+            do_sample=True  # Ensure sampling is enabled
         )
 
         response = await ai_service.generate_response(

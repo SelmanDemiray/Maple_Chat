@@ -686,7 +686,7 @@
         // Configuration Management
         const CONFIG = {
             API_BASE_URL: 'http://localhost:8007',
-            API_KEY: 'YOUR_ACTUAL_API_KEY', // Replace with your actual API key
+            API_KEY: 'default-api-key',
             MAX_TOKENS: 500,
             TEMPERATURE: 0.7,
             TOP_P: 0.9,
@@ -867,14 +867,17 @@
         }
 
         // API Interaction
+        // Send Message
         async function sendMessage() {
-            const userMessage = DOM.inputField.value.trim();
-            if (!userMessage) return;
+            const message = DOM.inputField.value.trim();
+            if (!message) return;
 
-            addMessage(userMessage, 'user');
+            // Add user message
+            addMessage('user', message);
             DOM.inputField.value = '';
-            showLoadingIndicator();
-            DOM.sendButton.disabled = true;
+
+            // Show loading indicator
+            DOM.loadingIndicator.style.display = 'flex';
 
             try {
                 const response = await fetch(`${CONFIG.API_BASE_URL}/chat`, {
@@ -884,30 +887,55 @@
                         'X-API-Key': CONFIG.API_KEY
                     },
                     body: JSON.stringify({
-                        model: state.currentModel,
                         messages: state.messages,
-                        max_tokens: CONFIG.MAX_TOKENS,
+                        model: state.currentModel,
+                        max_new_tokens: CONFIG.MAX_TOKENS,
                         temperature: CONFIG.TEMPERATURE,
                         top_p: CONFIG.TOP_P,
                         repetition_penalty: CONFIG.REPETITION_PENALTY
                     })
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    const errorMessage = errorData.detail || 'Unknown error occurred.';
-                    addMessage(errorMessage, 'assistant', true);
-                } else {
-                    const data = await response.json();
-                    addMessage(data.response, 'assistant');
+                const data = await response.json();
+
+                // Hide loading indicator
+                DOM.loadingIndicator.style.display = 'none';
+
+                // Add assistant response
+                addMessage('assistant', data.response);
+
+                // Display search results if available
+                if (data.search_results && data.search_results.length > 0) {
+                    const searchResultsHTML = data.search_results.map(result => `
+                        <div class="search-result-item">
+                            <strong>${result.title}</strong>
+                            <p>${result.snippet}</p>
+                            <a href="${result.url}" target="_blank">Source</a>
+                        </div>`
+                    ).join('');
+
+                    const searchResultsContainer = document.createElement('div');
+                    searchResultsContainer.className = 'search-results';
+                    searchResultsContainer.innerHTML = '<h4>Related Search Results:</h4>' + searchResultsHTML;
+                    DOM.chatContainer.appendChild(searchResultsContainer);
                 }
             } catch (error) {
-                console.error('Error:', error);
-                addMessage('Network error occurred.', 'assistant', true);
-            } finally {
-                hideLoadingIndicator();
-                DOM.sendButton.disabled = false;
+                DOM.loadingIndicator.style.display = 'none';
+                addMessage('assistant', 'Error processing your request. Please try again.');
+                console.error('Chat error:', error);
             }
+        }
+
+        // Add Message to Chat
+        function addMessage(role, content) {
+            const messageObj = { role, content };
+            state.messages.push(messageObj);
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}-message`;
+            messageDiv.innerHTML = marked.parse(content);
+            DOM.chatContainer.appendChild(messageDiv);
+            DOM.chatContainer.scrollTop = DOM.chatContainer.scrollHeight;
         }
 
         async function generateImage() {
@@ -955,6 +983,7 @@
             DOM.loadingIndicator.style.display = 'flex';
             DOM.progressBar.style.width = '0%';
         }
+
         function hideLoadingIndicator() {
             DOM.loadingIndicator.style.display = 'none';
         }
@@ -981,7 +1010,12 @@
                     return; // Exit the function early
                 }
 
-                state.models = Object.entries(data.models).map(([id, model]) => ({ id, ...model }));
+                state.models = Object.entries(data.models).map(([id, model]) => ({
+                    id,
+                    ...model
+                }));
+
+                // Set the default model from the API response
                 state.currentModel = data.default_model;
 
                 // Categorize models by type
@@ -1048,7 +1082,21 @@
             }
         }
 
-        // Estimation Handling (Upgraded)
+
+        // Estimation Handling (Upgraded with Caching and Debouncing)
+        function debounce(func, delay = 300) {
+            let timeoutId;
+            return function (...args) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
+        }
+
+        let hardwareInfoCache = null;
+        let latencyCache = null;
+
         async function getNetworkLatency() {
             const start = Date.now();
             try {
@@ -1093,12 +1141,11 @@
             estimatedTime = Math.max(estimatedTime, 1);
             estimatedTime = Math.min(estimatedTime, 60);
 
-            return estimatedTime < 2
-                ? "Approximately 1 second"
-                : `Approximately ${Math.round(estimatedTime)} seconds`;
+            return estimatedTime < 2 ?
+                "Approximately 1 second" :
+                `Approximately ${Math.round(estimatedTime)} seconds`;
         }
 
-        let hardwareInfoCache = null;
         async function updateEstimationInfo() {
             const currentModel = state.models.find(model => model.id === state.currentModel);
             if (currentModel) {
@@ -1111,13 +1158,19 @@
                         hardwareInfoCache = await response.json();
                     }
 
-                    const latency = await getNetworkLatency();
-                    const estimation = estimateGenerationTime(currentModel, hardwareInfoCache, latency);
-                    document.getElementById('estimation-info').textContent = `Estimated time: ${estimation}`; // Use textContent
+                    if (!latencyCache) {
+                        latencyCache = await getNetworkLatency();
+                    }
+
+                    const estimation = estimateGenerationTime(currentModel, hardwareInfoCache, latencyCache);
+                    document.getElementById('estimation-info').textContent = `Estimated time: ${estimation}`;
 
                 } catch (error) {
                     console.error('Error fetching hardware or estimating time:', error);
-                    const estimation = estimateGenerationTime(currentModel, { gpu: "cpu", cpu_cores: 4 }, 500);
+                    const estimation = estimateGenerationTime(currentModel, {
+                        gpu: "cpu",
+                        cpu_cores: 4
+                    }, 500);
                     document.getElementById('estimation-info').textContent = `Estimated time: ${estimation} (fallback)`;
                 }
             }
@@ -1156,7 +1209,8 @@
             updateEstimationInfo();
         });
 
-        DOM.inputField.addEventListener('input', updateEstimationInfo);
+        // Use the debounced function for the input event
+        DOM.inputField.addEventListener('input', debounce(updateEstimationInfo, 300));
 
         DOM.themeToggle.addEventListener('click', toggleTheme);
 
@@ -1167,9 +1221,9 @@
             state.sidebarCollapsed = !state.sidebarCollapsed;
             DOM.sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
             DOM.sidebar.style.width = state.sidebarCollapsed ? '50px' : '250px';
-            DOM.sidebarToggle.innerHTML = state.sidebarCollapsed
-                ? '<i class="fas fa-angle-right"></i>'
-                : '<i class="fas fa-angle-left"></i>';
+            DOM.sidebarToggle.innerHTML = state.sidebarCollapsed ?
+                '<i class="fas fa-angle-right"></i>' :
+                '<i class="fas fa-angle-left"></i>';
         });
 
         // Initialization
