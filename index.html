@@ -26,15 +26,15 @@
             --timestamp-color: #6c757d;
             --error-bg: #f8d7da;
             --error-text: #721c24;
-            --model-tiny-bg: #f0fff0;
+            --model-tiny-bg: #d8f7d8;
             /* Light green for tiny */
-            --model-small-bg: #CCEECC;
+            --model-small-bg: #90dd90;
             /* Light green */
-            --model-medium-bg: #FFFFCC;
+            --model-medium-bg: #f6f66d;
             /* Light yellow */
-            --model-large-bg: #FFCCCC;
+            --model-large-bg: #f69c9c;
             /* Light red */
-            --model-xlarge-bg: #e8b0b0;
+            --model-xlarge-bg: #f0f0f0;
             /* Light orange for xlarge */
             --model-tiny-color: #000;
             --model-small-color: #000;
@@ -46,39 +46,67 @@
         }
 
         body.dark-mode {
-            --bg-color: #121212;
-            --text-color: #e0e0e0;
-            --user-message-bg: #304ffe;
+            /* Base Colors */
+            --bg-color: #181818;
+            /* Slightly lighter background for better readability */
+            --text-color: #f0f0f0;
+            /* Slightly warmer white for a softer feel */
+
+            /* Message Colors */
+            --user-message-bg: #2962FF;
+            /* Deeper blue for user messages */
             --user-message-color: white;
-            --assistant-message-bg: #333333;
-            --input-bg: #1f1f1f;
-            --input-border: #444;
-            --button-bg: #bb86fc;
+            --assistant-message-bg: #2a2a2a;
+            /* Slightly darker than background for separation */
+
+            /* Input Colors */
+            --input-bg: #242424;
+            --input-border: #555;
+            /* Slightly more visible border */
+
+            /* Button Colors */
+            --button-bg: #BB86FC;
+            /* Keep this vibrant purple */
             --button-hover-bg: #9b67d3;
-            --scrollbar-bg: #444;
-            --scrollbar-thumb: #666;
-            --card-bg: #1e1e1e;
-            --hover-bg: #2c2c2c;
-            --timestamp-color: #aaa;
-            --error-bg: #5d1b1b;
-            --error-text: #ff6b6b;
-            --model-tiny-bg: #004d00;
-            /* Darker green for tiny */
-            --model-small-bg: #006400;
-            /* Darker green */
+
+            /* UI Element Colors */
+            --scrollbar-bg: #333;
+            --scrollbar-thumb: #555;
+            --card-bg: #222;
+            --hover-bg: #333;
+            --timestamp-color: #888;
+            /* Less prominent timestamp */
+            --error-bg: #661b1b;
+            --error-text: #f44336;
+            /* More standard error red */
+
+            /* Model Colors (Improved) */
+            --model-tiny-bg: #006400;
+            /* Dark green */
+            --model-small-bg: #228B22;
+            /* Forest green */
             --model-medium-bg: #DAA520;
-            /* Darker yellow/gold */
-            --model-large-bg: #8B0000;
-            /* Darker red */
-            --model-xlarge-bg: #CC8500;
-            /* Darker orange for xlarge */
+            /* Goldenrod */
+            --model-large-bg: #D2691E;
+            /* Chocolate brown */
+            --model-xlarge-bg: #8B0000;
+            /* Dark red */
+
             --model-tiny-color: #fff;
             --model-small-color: #fff;
             --model-medium-color: #000;
             --model-large-color: #fff;
             --model-xlarge-color: #fff;
-            --category-border-color: #bb86fc;
-            /* Purple border for categories in dark mode */
+
+            /* Category Colors */
+            --category-border-color: #BB86FC;
+        }
+
+        /* Focus State (Important for Accessibility) */
+        button:focus,
+        input:focus {
+            outline: 2px solid #BB86FC;
+            /* Use your accent color */
         }
 
         * {
@@ -207,6 +235,23 @@
             padding: 8px;
             border-radius: 5px;
             width: 100%;
+            font-size: 1rem;
+            /* Increased font size */
+            appearance: none;
+            /* Remove default dropdown arrow */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            /* Add custom dropdown arrow */
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 30px;
+            /* Add some space for the arrow */
+        }
+
+        #model-dropdown option {
+            font-size: 1rem;
+            /* Increased font size */
+            padding: 5px;
+            /* Added padding */
         }
 
         #model-dropdown option[data-size="tiny"] {
@@ -236,14 +281,11 @@
 
         #model-dropdown optgroup {
             border-top: 2px solid var(--category-border-color);
-            /* Add a top border to optgroups */
             padding-top: 5px;
-            /* Add some space above the category label */
         }
 
         #model-dropdown optgroup:first-of-type {
             border-top: none;
-            /* Remove the border from the first category */
         }
 
         #chat-container {
@@ -534,10 +576,6 @@
             /* Add space between items */
         }
 
-        #model-legend li {
-            /* No need for margin-bottom anymore */
-        }
-
         #model-legend span {
             padding: 2px 5px;
             border-radius: 3px;
@@ -545,6 +583,15 @@
             /* Slightly smaller font size */
             white-space: nowrap;
             /* Prevent legend items from wrapping */
+        }
+
+        /* Added Styles for Spacing */
+        #sidebar-toggle {
+            margin-bottom: 15px;
+        }
+
+        #model-info {
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -555,8 +602,10 @@
             <button id="sidebar-toggle">
                 <i class="fas fa-angle-left"></i>
             </button>
+
             <div id="model-info">
                 <select id="model-dropdown"></select>
+
                 <div id="model-info-box" class="model-info-box">
                     <p id="model-description"></p>
                     <p>Max Tokens: <span id="model-max-tokens"></span></p>
@@ -584,6 +633,7 @@
                     </div>
                 </div>
             </div>
+
             <div id="chat-history">
                 <h3>Chat History</h3>
                 <ul id="history-list"></ul>
@@ -905,7 +955,6 @@
             DOM.loadingIndicator.style.display = 'flex';
             DOM.progressBar.style.width = '0%';
         }
-
         function hideLoadingIndicator() {
             DOM.loadingIndicator.style.display = 'none';
         }
@@ -947,9 +996,8 @@
                 // Generate options for each model type
                 let optionsHTML = '';
                 for (const type in modelsByType) {
-                    optionsHTML += `<optgroup label="${type.toUpperCase()}">`;
+                    optionsHTML += `<optgroup label="${type.toUpperCase()} ${getEmojiForType(type)}">`; // Add emoji to label
                     modelsByType[type].forEach(model => {
-                        // Corrected option tag generation:
                         optionsHTML += `<option value="${model.id}" data-type="${model.type}" data-size="${model.size}">${model.id}</option>`;
                     });
                     optionsHTML += `</optgroup>`;
@@ -973,6 +1021,23 @@
             } catch (error) {
                 console.error('Error fetching models:', error);
                 addMessage('Failed to load available models.', 'assistant', true);
+            }
+        }
+
+        function getEmojiForType(type) {
+            switch (type) {
+                case 'text':
+                    return '💬';
+                case 'image':
+                    return '🖼️';
+                case 'code':
+                    return '🧱'; // Or your preferred coding emoji
+                case 'video':
+                    return '🎬';
+                case 'audio':
+                    return '🎧'; // Emoji for audio
+                default:
+                    return '';
             }
         }
 
@@ -1028,7 +1093,9 @@
             estimatedTime = Math.max(estimatedTime, 1);
             estimatedTime = Math.min(estimatedTime, 60);
 
-            return estimatedTime < 2 ? "Approximately 1 second" : `Approximately ${Math.round(estimatedTime)} seconds`;
+            return estimatedTime < 2
+                ? "Approximately 1 second"
+                : `Approximately ${Math.round(estimatedTime)} seconds`;
         }
 
         let hardwareInfoCache = null;
@@ -1100,7 +1167,9 @@
             state.sidebarCollapsed = !state.sidebarCollapsed;
             DOM.sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
             DOM.sidebar.style.width = state.sidebarCollapsed ? '50px' : '250px';
-            DOM.sidebarToggle.innerHTML = state.sidebarCollapsed ? '<i class="fas fa-angle-right"></i>' : '<i class="fas fa-angle-left"></i>';
+            DOM.sidebarToggle.innerHTML = state.sidebarCollapsed
+                ? '<i class="fas fa-angle-right"></i>'
+                : '<i class="fas fa-angle-left"></i>';
         });
 
         // Initialization
@@ -1119,6 +1188,7 @@
         }
 
         initialize();
+
     </script>
 </body>
 

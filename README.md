@@ -45,7 +45,9 @@ A powerful, extensible, and easy-to-deploy platform for AI-driven conversations 
 - **API Security**: Robust authentication with API keys and customizable rate limits
 - **Health Monitoring**: Automatic checks for frontend and backend services
 
-![Screenshot](/screenshot.png)
+![GIF 1](./gif1.gif)
+![GIF 2](./gif2.gif)
+![GIF 3](./gif3.gif)
 
 
 ## 🚀 Getting Started
