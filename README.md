@@ -1,4 +1,5 @@
 ![Logo](./logo.png)
+Live Demo Link: https://selmandemiray.github.io/Maple_Chat/  *(Back End Not Deployed)*
 # Open Source AI Chat 🤖
 
 A powerful, extensible, and easy-to-deploy platform for AI-driven conversations and multimodal interactions. This platform supports various AI models for text, image, audio, and code generation, designed with customization and scalability in mind.
