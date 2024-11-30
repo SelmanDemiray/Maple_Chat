@@ -102,8 +102,7 @@ GET /health
 ## 🐳 Docker Configuration
 
 ```yaml
-version: '3.8'
-
+# docker-compose.yml
 services:
   backend:
     build:
@@ -111,6 +110,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - API_KEY=${API_KEY}
+      - API_KEYS=${API_KEYS}
       - SECRET_KEY=${SECRET_KEY}
       - MODEL_NAME=${MODEL_NAME}
       - MAX_TOKENS=${MAX_TOKENS}
@@ -140,6 +140,7 @@ services:
     image: nginx:alpine
     volumes:
       - ./index.html:/usr/share/nginx/html/index.html
+      - ./logo.png:/usr/share/nginx/html/logo.png
       - ./nginx.conf:/etc/nginx/nginx.conf
     ports:
       - "8080:80"
