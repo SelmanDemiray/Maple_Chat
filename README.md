@@ -99,7 +99,7 @@ GET /health
 }
 ```
 
-## 🐳 Docker Configuration
+## 🐳 Docker Compose Configuration
 
 ```yaml
 # docker-compose.yml
