@@ -332,4 +332,3 @@ The following uses of the software are strictly prohibited:
 
 **Jurisdiction and Governing Law:** While users are subject to the laws of their respective jurisdictions, Canadian law will always be used to interpret and assess any matters related to AI usage and regulations. This includes, but is not limited to, data privacy, intellectual property, and content generation. By using this software, users acknowledge and agree to these terms and conditions. 
 
-For inquiries and support, please contact us at [your-email@example.com](mailto:your-email@example.com).
