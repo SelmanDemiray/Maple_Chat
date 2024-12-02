@@ -120,7 +120,7 @@ A powerful, extensible, and easy-to-deploy platform for AI-driven conversations 
 
   1. **Clone the Repository**
     ```
-    git clone [https://github.com/yourusername/open-source-ai-chat.git](https://github.com/yourusername/open-source-ai-chat.git)
+    git clone https://github.com/SelmanDemiray/Maple_Chat.git
     ```
 
   2. **Navigate to the Project Directory**
