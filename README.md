@@ -121,10 +121,12 @@ A powerful, extensible, and easy-to-deploy platform for AI-driven conversations 
   1. **Clone the Repository**
      ```bash
      git clone [https://github.com/yourusername/open-source-ai-chat.git](https://github.com/yourusername/open-source-ai-chat.git)
-     cd open-source-ai-chat
+     ``` 
+     ```bash 
+     cd open-source-ai-chat
      ```
 
-  2. **Launch the Application**
+  3. **Launch the Application**
      ```bash
      docker-compose up --build
      ```
