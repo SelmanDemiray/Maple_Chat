@@ -1,4 +1,3 @@
-```
 ![Logo](./logo.png)
 
 Live Demo Link: https://selmandemiray.github.io/Maple_Chat/  *(Back End Not Deployed)*
