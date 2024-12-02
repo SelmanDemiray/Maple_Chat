@@ -125,7 +125,7 @@ A powerful, extensible, and easy-to-deploy platform for AI-driven conversations 
 
   2. **Navigate to the Project Directory**
     ```
-    cd open-source-ai-chat
+    cd Maple_Chat
     ```
 
   3. **Launch the Application**
