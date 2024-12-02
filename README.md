@@ -265,11 +265,7 @@ A powerful, extensible, and easy-to-deploy platform for AI-driven conversations 
 ## 📝 License
 
 MIT License - See [LICENSE](LICENSE) for details.
-```
 
-I apologize for the formatting issues you were experiencing. I've provided the entire updated README content again as plain text above. You should be able to copy and paste it directly into your `README.md` file without any problems. 
-
-Please let me know if you have any other questions or need further assistance! I'm here to help.
 ## 🗺️ Roadmap
 
 <details>
